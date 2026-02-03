@@ -25,26 +25,23 @@ export default class GameUI {
             textHighlight: '#ff7043',
             textBust: '#e53935',
             bgZone: 0xf0f4c3,
-            // 休闲卡背配色
-            cardBackBase: 0x64b5f6,
-            cardBackBorder: 0x1565c0,
-            cardBackSide: 0x42a5f5,
+            cardBackBase: 0xffab91,
+            cardBackBorder: 0xd84315,
+            cardBackSide: 0xffccbc,
             player: [0xff7043, 0x4db6ac, 0x7986cb, 0xffca28, 0xba68c8, 0x4dd0e1]
         };
 
-        // --- 初始化子模块 ---
         this.cardDrawer = new UICard(scene, this.colors);
         this.grid = new UIGrid(scene, this.layout, this.colors);
         this.playerInfo = new UIPlayerInfo(scene, this.layout, this.colors, this.cardDrawer);
         this.hand = new UIHand(scene, this.layout, this.colors, this.cardDrawer);
 
-        // --- 主 UI 状态 ---
         this.playerTokens = {};
         this.activeMarker = null;
         this.onDrawClick = null;
         this.onGiveUpClick = null;
+        this.onUseItemClick = null; // 新增：使用道具回调
 
-        // 中间区域相关
         this.midCardsGroup = null;
         this.deckPileGroup = null;
         this.duelGroup = null;
@@ -55,37 +52,23 @@ export default class GameUI {
     init() {
         this.grid.drawZones();
         this.grid.drawBoard();
-        // 代理 grid 的数据
         this.gridCoordinates = this.grid.getCoordinates();
-
-        // 玩家面板初始化 (数据由外部传入 refreshTopPanel 时填充)
-        // 手牌面板初始化
         this.hand.create();
-
-        // 中间区域
         this.createMidInfo();
         this.createActiveMarker();
     }
 
-    setButtonHandlers(onDraw, onGiveUp) {
+    setButtonHandlers(onDraw, onGiveUp, onUseItem, onSkipItem) { // 增加 onSkipItem 参数
         this.onDrawClick = onDraw;
         this.onGiveUpClick = onGiveUp;
+        this.onUseItemClick = onUseItem;
+        this.onSkipItemClick = onSkipItem; // 绑定
     }
 
-    // --- 代理子模块方法 ---
-    refreshTopPanel(players) {
-        this.playerInfo.refresh(players);
-    }
+    refreshTopPanel(players) { this.playerInfo.refresh(players); }
+    updateBtmPanel(player) { this.hand.update(player); }
+    hideStartGrid() { this.grid.hideStartGrid(); }
 
-    updateBtmPanel(player) {
-        this.hand.update(player);
-    }
-
-    hideStartGrid() {
-        this.grid.hideStartGrid();
-    }
-
-    // --- 3. 玩家棋子与动画 (保留在主控，因为涉及坐标交互) ---
     drawPlayerAt(gridId, playerIndex, fullPlayerName = "") {
         const targetPos = this.calculateTokenPos(gridId, playerIndex);
         if (this.playerTokens[playerIndex]) {
@@ -108,10 +91,7 @@ export default class GameUI {
     calculateTokenPos(gridId, playerIndex) {
         const pos = this.gridCoordinates[gridId];
         if (!pos) return {x:0, y:0};
-        const offsets = [
-            {x: -26, y: -20}, {x: 0, y: -20}, {x: 26, y: -20},
-            {x: -26, y: 18},  {x: 0, y: 18},  {x: 26, y: 18}
-        ];
+        const offsets = [{x: -26, y: -20}, {x: 0, y: -20}, {x: 26, y: -20}, {x: -26, y: 18}, {x: 0, y: 18}, {x: 26, y: 18}];
         const offset = offsets[playerIndex % 6];
         return { x: pos.x + 42.5 + offset.x, y: pos.y + 42.5 + offset.y };
     }
@@ -151,13 +131,18 @@ export default class GameUI {
         });
     }
 
-    // --- 5. 中间区域 (牌堆、信息、按钮) ---
+    // --- 5. 中间区域 ---
     createMidInfo() {
-        const centerX = 720 / 2; const centerY = this.layout.topHeight + (this.layout.midHeight / 2) - 30;
+        const centerX = 720 / 2;
+        const centerY = this.layout.topHeight + (this.layout.midHeight / 2) - 30;
+
+        // 1. 分数和提示
         this.midScoreText = this.scene.add.text(centerX, centerY - 100, "+0", {
             fontSize: '80px', color: '#4caf50', fontStyle: 'bold', stroke: '#ffffff', strokeThickness: 4, padding: { top: 40, bottom: 40 }
         }).setOrigin(0.5);
+
         this.midLabelText = this.scene.add.text(centerX, centerY - 160, "本轮预计", { fontSize: '24px', color: '#8d6e63', padding: { top: 10, bottom: 10 } }).setOrigin(0.5);
+
         this.midPlayerText = this.scene.add.text(centerX, centerY - 20, "当前: -", {
             fontSize: '36px', color: '#5d4037', fontStyle: 'bold', padding: { top: 10, bottom: 10 }, align: 'center', wordWrap: { width: 500 }
         }).setOrigin(0.5);
@@ -166,47 +151,89 @@ export default class GameUI {
         this.duelGroup = this.scene.add.group();
         this.deckPileGroup = this.scene.add.group();
 
-        const btmY = 1280 - this.layout.btmHeight;
-        const controlY = btmY - 50;
-        this.midCardPos = { x: centerX, y: centerY + 60 };
-        this.deckPos = { x: 100, y: controlY };
+        // 2. 牌库和抽卡位
+        const cardY = centerY + 110;
+        this.midCardPos = { x: centerX, y: cardY };
+        this.deckPos = { x: centerX - 130, y: cardY };
 
-        this.deckCountText = this.scene.add.text(this.deckPos.x, this.deckPos.y + 70, "牌库: --", {
+        this.deckCountText = this.scene.add.text(this.deckPos.x, this.deckPos.y + 80, "牌库: --", {
             fontSize: '24px', color: '#8d6e63', fontStyle: 'bold', padding: { top: 5, bottom: 5 }
         }).setOrigin(0.5);
 
+        // 3. 按钮组
+        const btmY = 1280 - this.layout.btmHeight;
+        const controlY = btmY - 50;
         this.actionButtonGroup = this.scene.add.group();
-        this.btnDraw = this.createButton(centerX - 60, controlY, "抽牌", 0x66bb6a, () => { if (this.onDrawClick) this.onDrawClick(); });
-        this.btnGiveUp = this.createButton(centerX + 100, controlY, "放弃", 0xef5350, () => { if (this.onGiveUpClick) this.onGiveUpClick(); });
-        this.actionButtonGroup.addMultiple([this.btnDraw.bg, this.btnDraw.text, this.btnGiveUp.bg, this.btnGiveUp.text]);
+        this.btnDraw = this.createButton(centerX - 80, controlY, "抽牌", 0x66bb6a, () => { if (this.onDrawClick) this.onDrawClick(); });
+        this.btnGiveUp = this.createButton(centerX + 80, controlY, "放弃", 0xef5350, () => { if (this.onGiveUpClick) this.onGiveUpClick(); });
+        this.actionButtonGroup.addMultiple([this.btnDraw.container, this.btnGiveUp.container]);
+
+        // 4. 新增：倒计时文本 (默认隐藏)
+        this.timerText = this.scene.add.text(centerX, centerY + 20, "", {
+            fontSize: '60px', color: '#d84315', fontStyle: 'bold'
+        }).setOrigin(0.5).setVisible(false);
+
+        // --- 新增：跳过道具阶段按钮 ---
+        // 放在倒计时下方
+        this.btnSkipItem = this.createButton(centerX, centerY + 100, "不使用道具", 0x90a4ae, () => {
+            if (this.onSkipItemClick) this.onSkipItemClick();
+        });
+        this.btnSkipItem.container.setVisible(false);
+        // -----------------------------
+
+        // 5. 新增：道具描述面板组 (默认隐藏)
+        this.itemDescGroup = this.scene.add.container(centerX, controlY);
+        this.itemDescGroup.setVisible(false);
+
+        // 描述文字
+        this.itemDescText = this.scene.add.text(-120, 0, "", {
+            fontSize: '20px', color: '#5d4037', align: 'left', wordWrap: { width: 280 }
+        }).setOrigin(0.5);
+        this.itemDescGroup.add(this.itemDescText);
+
+        // 使用按钮
+        this.btnUseItem = this.createButton(180, 0, "使用", 0xff7043, () => { if (this.onUseItemClick) this.onUseItemClick(); });
+        // 调整按钮大小适应
+        this.btnUseItem.bg.width = 100;
+        this.itemDescGroup.add(this.btnUseItem.container);
+
         this.showActionButtons(false);
     }
 
     createButton(x, y, label, color, callback) {
-        const w = 140; const h = 60; const bg = this.scene.add.graphics();
-        bg.fillStyle(color, 1); bg.fillRoundedRect(x - w/2, y - h/2, w, h, 15);
-        bg.fillStyle(0x000000, 0.2); bg.fillRoundedRect(x - w/2, y - h/2 + 4, w, h, 15);
-        const text = this.scene.add.text(x, y, label, { fontSize: '28px', color: '#ffffff', fontStyle: 'bold', padding: { top: 10, bottom: 10 } }).setOrigin(0.5);
-        const zone = this.scene.add.zone(x, y, w, h).setInteractive();
+        const w = 140; const h = 60;
+        const container = this.scene.add.container(x, y);
+
+        const bg = this.scene.add.graphics();
+        bg.fillStyle(color, 1);
+        bg.fillRoundedRect(-w/2, -h/2, w, h, 15);
+        bg.fillStyle(0x000000, 0.2);
+        bg.fillRoundedRect(-w/2, -h/2 + 4, w, h, 15);
+
+        const text = this.scene.add.text(0, 0, label, { fontSize: '28px', color: '#ffffff', fontStyle: 'bold', padding: { top: 10, bottom: 10 } }).setOrigin(0.5);
+        const zone = this.scene.add.zone(0, 0, w, h).setInteractive();
+
         zone.on('pointerdown', () => {
-            bg.clear(); bg.fillStyle(color, 1); bg.fillRoundedRect(x - w/2, y - h/2 + 2, w, h, 15);
+            bg.clear(); bg.fillStyle(color, 1); bg.fillRoundedRect(-w/2, -h/2 + 2, w, h, 15);
             this.scene.time.delayedCall(100, () => {
-                bg.clear(); bg.fillStyle(color, 1); bg.fillRoundedRect(x - w/2, y - h/2, w, h, 15);
-                bg.fillStyle(0x000000, 0.2); bg.fillRoundedRect(x - w/2, y - h/2 + 4, w, h, 15);
+                bg.clear(); bg.fillStyle(color, 1); bg.fillRoundedRect(-w/2, -h/2, w, h, 15);
+                bg.fillStyle(0x000000, 0.2); bg.fillRoundedRect(-w/2, -h/2 + 4, w, h, 15);
             });
             callback();
         });
-        return { bg, text, zone };
+
+        container.add([bg, text, zone]);
+        return { container, bg, text, zone };
     }
 
     updateMidCard(card) {
         this.midCardsGroup.clear(true, true);
-        const bg = this.scene.add.graphics();
-        const elems = this.cardDrawer.drawMedium(this.midCardPos.x, this.midCardPos.y + 50, card.value, false, null); // 位置微调
+        const w = 90; const h = 110;
+        const drawX = this.midCardPos.x - w/2;
+        const drawY = this.midCardPos.y - h/2;
+        const elems = this.cardDrawer.drawLarge(drawX, drawY, card.value, null);
         if (elems) {
-            // CardDrawer 返回的是数组 [bg, text]，我们需要加到 group
             this.midCardsGroup.addMultiple(elems);
-            // 翻开动画
             this.midCardsGroup.scaleX = 0;
             this.scene.tweens.add({ targets: this.midCardsGroup, scaleX: 1, duration: 150, ease: 'Quad.easeOut' });
         }
@@ -214,7 +241,12 @@ export default class GameUI {
 
     updateMidScore(score) { this.midScoreText.setText(`+${score}`); }
     updateCurrentPlayerName(name) { if (this.midPlayerText) this.midPlayerText.setText(`当前: ${name}`); }
-    resetMidInfo() { this.midCardsGroup.clear(true, true); this.midScoreText.setText("+0"); }
+
+    resetMidInfo() {
+        this.midCardsGroup.clear(true, true);
+        this.midScoreText.setText("+0");
+        this.hideItemUsageMode(); // 重置时确保退出道具模式
+    }
 
     updateDeckCount(count) {
         if (this.deckCountText) this.deckCountText.setText(`牌库: ${count}`);
@@ -226,6 +258,7 @@ export default class GameUI {
         if (count <= 0) return;
         const layers = Math.min(Math.ceil(count / 5), 6);
         const w = 90; const h = 110;
+
         for (let i = 0; i < layers; i++) {
             const offset = i * 2;
             const bg = this.scene.add.graphics();
@@ -235,49 +268,110 @@ export default class GameUI {
             bg.strokeRoundedRect(this.deckPos.x - w/2 - offset, this.deckPos.y - h/2 - offset, w, h, 8);
             this.deckPileGroup.add(bg);
         }
+
         const topOffset = (layers - 1) * 2;
         const topX = this.deckPos.x - topOffset;
         const topY = this.deckPos.y - topOffset;
+
         const topCard = this.scene.add.graphics();
         topCard.fillStyle(this.colors.cardBackBase, 1);
         topCard.fillRoundedRect(topX - w/2, topY - h/2, w, h, 8);
         topCard.lineStyle(3, this.colors.cardBackBorder, 1);
         topCard.strokeRoundedRect(topX - w/2, topY - h/2, w, h, 8);
-        topCard.lineStyle(2, 0xffffff, 0.5);
+        topCard.lineStyle(2, 0xffffff, 0.4);
         topCard.strokeRoundedRect(topX - w/2 + 10, topY - h/2 + 10, w - 20, h - 20, 4);
+        topCard.beginPath();
+        topCard.moveTo(topX - 15, topY - 15); topCard.lineTo(topX + 15, topY + 15);
+        topCard.moveTo(topX + 15, topY - 15); topCard.lineTo(topX - 15, topY + 15);
+        topCard.strokePath();
+
         this.deckPileGroup.add(topCard);
     }
 
     playDrawAnimation(onComplete) {
         const w = 90; const h = 110;
-        const tempCard = this.scene.add.container(this.deckPos.x, this.deckPos.y);
+        const tempCard = this.scene.add.container(this.deckPos.x, this.deckPos.y).setDepth(2000);
         const bg = this.scene.add.graphics();
         bg.fillStyle(this.colors.cardBackBase, 1);
         bg.fillRoundedRect(-w/2, -h/2, w, h, 8);
         bg.lineStyle(3, this.colors.cardBackBorder, 1);
         bg.strokeRoundedRect(-w/2, -h/2, w, h, 8);
-        bg.lineStyle(2, 0xffffff, 0.5);
+        bg.lineStyle(2, 0xffffff, 0.4);
         bg.strokeRoundedRect(-w/2 + 10, -h/2 + 10, w - 20, h - 20, 4);
         tempCard.add(bg);
-        tempCard.setDepth(2000);
+
         this.scene.tweens.add({
             targets: tempCard,
             x: this.midCardPos.x,
-            y: this.midCardPos.y + 50, // 与 updateMidCard 位置一致
-            scaleX: 0,
-            duration: 250,
-            ease: 'Cubic.easeInOut',
+            y: this.midCardPos.y,
+            scaleX: 1, scaleY: 1, angle: 360, duration: 400, ease: 'Cubic.easeOut',
             onComplete: () => {
-                tempCard.destroy();
-                if (onComplete) onComplete();
+                this.scene.tweens.add({
+                    targets: tempCard, scaleX: 0, duration: 100,
+                    onComplete: () => { tempCard.destroy(); if (onComplete) onComplete(); }
+                });
             }
         });
     }
 
     showActionButtons(visible) {
         this.actionButtonGroup.setVisible(visible);
-        this.btnDraw.zone.disableInteractive(); this.btnGiveUp.zone.disableInteractive();
-        if (visible) { this.btnDraw.zone.setInteractive(); this.btnGiveUp.zone.setInteractive(); }
+        // 如果显示了操作按钮，确保道具描述面板是隐藏的
+        if (visible) {
+            this.itemDescGroup.setVisible(false);
+            this.btnDraw.zone.setInteractive();
+            this.btnGiveUp.zone.setInteractive();
+        } else {
+            this.btnDraw.zone.disableInteractive();
+            this.btnGiveUp.zone.disableInteractive();
+        }
+    }
+
+    // --- 新增：道具阶段 UI 控制 ---
+
+    // 进入道具阶段：隐藏部分中间信息，显示倒计时
+    showItemUsageMode(timeLeft) {
+        this.midLabelText.setVisible(false);
+        this.deckCountText.setVisible(false);
+        this.deckPileGroup.setVisible(false);
+        this.midScoreText.setVisible(false);
+
+        this.timerText.setVisible(true).setText(timeLeft);
+        this.btnSkipItem.container.setVisible(true); // 显示跳过按钮
+        this.btnSkipItem.zone.setInteractive();      // 启用交互
+    }
+
+    // 退出道具阶段：恢复显示
+    hideItemUsageMode() {
+        this.midLabelText.setVisible(true);
+        this.deckCountText.setVisible(true);
+        this.deckPileGroup.setVisible(true);
+        this.midScoreText.setVisible(true);
+
+        this.timerText.setVisible(false);
+        this.btnSkipItem.container.setVisible(false); // 隐藏跳过按钮
+        this.btnSkipItem.zone.disableInteractive();   // 禁用交互
+        this.itemDescGroup.setVisible(false);
+    }
+
+    updateTimer(timeLeft) {
+        if (this.timerText.visible) this.timerText.setText(timeLeft);
+    }
+
+    // 显示选中道具的描述，隐藏抽卡按钮
+    showItemDescription(itemData) {
+        this.actionButtonGroup.setVisible(false); // 隐藏抽牌/放弃
+        this.itemDescGroup.setVisible(true);
+
+        this.itemDescText.setText(`${itemData.name}:\n${itemData.desc}`);
+        this.btnUseItem.zone.setInteractive();
+    }
+
+    // 取消选中道具，恢复按钮
+    hideItemDescription(isItemPhase) {
+        this.itemDescGroup.setVisible(false);
+        // 如果还在道具阶段，且不是AI，这里其实按钮本来就是隐藏的（因为是倒计时）
+        // 如果是阶段结束进入抽卡，showActionButtons 会被 GameScene 调用
     }
 
     updateDuelPanel(challenger, target, pool, challengerCards, targetCards) {

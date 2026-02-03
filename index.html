@@ -6,6 +6,44 @@
     <title>Draw Dash Bust</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="js/phaser.min.js"></script>
+    <style>
+        /* 补充规则弹窗的内部样式 */
+        .rules-container {
+            text-align: left;
+            padding: 0 10px;
+            font-size: 16px;
+            line-height: 1.6;
+            color: #333;
+            max-height: 60vh; /* 防止内容过长溢出 */
+            overflow-y: auto; /* 超出可滚动 */
+        }
+        .rules-container h3 {
+            color: #d84315;
+            border-bottom: 2px solid #ffab91;
+            padding-bottom: 5px;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        .rules-container ul {
+            padding-left: 20px;
+            margin: 0;
+        }
+        .rules-container li {
+            margin-bottom: 8px;
+        }
+        .item-tag {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #fff;
+            margin-right: 5px;
+        }
+        .tag-def { background-color: #4caf50; } /* 防御 */
+        .tag-atk { background-color: #f44336; } /* 攻击 */
+        .tag-bonus { background-color: #ff9800; } /* 奖励 */
+    </style>
 </head>
 <body>
 <div id="game-container"></div>
@@ -50,11 +88,57 @@
 <div id="rules-modal" class="hidden">
     <div class="modal-content">
         <div class="modal-header">
-            <h2>游戏规则</h2>
+            <h2>游戏规则说明</h2>
             <button id="btn-close-rules" class="close-btn">×</button>
         </div>
         <div class="modal-body">
-            <p>...规则内容...</p>
+            <div class="rules-container">
+                <section>
+                    <h3>🏆 胜利条件</h3>
+                    <p>通过抽牌累积点数，棋子在棋盘上移动。率先累积总分达到 <strong>200分</strong> 的玩家获胜。</p>
+                </section>
+
+                <section>
+                    <h3>🎲 基础玩法</h3>
+                    <ul>
+                        <li><strong>回合流程</strong>：轮到你时，可以选择【抽牌】或【放弃】。</li>
+                        <li><strong>抽牌</strong>：
+                            <ul>
+                                <li><strong>数字牌</strong>：获得对应分数，棋子前进对应步数。</li>
+                                <li><strong>功能牌</strong>：触发特殊效果（如冻结对手、翻倍分数）。</li>
+                            </ul>
+                        </li>
+                        <li><strong>💥 爆牌 (BUST)</strong>：如果你抽到的数字牌与你<strong>本轮手牌</strong>中已有的数字重复，则发生爆炸！本轮得分归零，强制结束回合。</li>
+                        <li><strong>🔒 放弃 (BANK)</strong>：如果你觉得风险太高，可以选择“放弃”。本轮当前得分将安全计入总分，并结束回合。</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h3>🎁 道具获取与特殊格</h3>
+                    <p>棋盘上设有金色的<strong>特殊奖励格</strong>（第 1, 6, 12, 18 格）。</p>
+                    <ul>
+                        <li><strong>获取方式</strong>：当你的棋子移动后<strong>刚好停留</strong>在特殊格上时，系统会免费赠送一张<strong>功能卡</strong>或<strong>防御道具</strong>。</li>
+                        <li><strong>使用方式</strong>：
+                            <ul>
+                                <li><strong>主动卡</strong>（如冻结）：抽到即刻触发，需选择目标。</li>
+                                <li><strong>被动道具</strong>（如复活）：自动存入底部道具栏，在关键时刻（如快爆牌时）自动触发。</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h3>🃏 道具图鉴</h3>
+                    <ul>
+                        <li><span class="item-tag tag-def">复</span> <strong>第二次机会</strong>：被动神器。当你抽到重复数字即将爆牌时，自动消耗此道具抵消该卡，保住分数并安全结束回合。</li>
+                        <li><span class="item-tag tag-def">闪</span> <strong>快闪</strong>：被动防御。当对手对你使用“冻结”等技能时，自动消耗此道具进行格挡。</li>
+                        <li><span class="item-tag tag-atk">冻</span> <strong>冻结</strong>：指定一名对手，使其下回合无法行动（跳过）。</li>
+                        <li><span class="item-tag tag-atk">三</span> <strong>翻3张</strong>：指定一名对手（或自己），强制其连续快速抽取3张牌，极大概率导致其爆牌。</li>
+                        <li><span class="item-tag tag-bonus">胆</span> <strong>试胆竞速</strong>：发起 1v1 对决！双方从牌库盲抽，比拼点数总和，赢家获得额外奖励分。</li>
+                        <li><span class="item-tag tag-bonus">双</span> <strong>无双模式</strong>：本轮后续每次点击“抽牌”都会一次性抽取 2 张，高风险高回报！</li>
+                    </ul>
+                </section>
+            </div>
         </div>
     </div>
 </div>
