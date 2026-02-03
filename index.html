@@ -3,13 +3,132 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>抽！跑！爆！</title>
+    <title>Draw Dash Bust</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="js/phaser.min.js"></script>
 </head>
 <body>
 <div id="game-container"></div>
 
-<script type="module" src="js/main.js"></script>
+<div id="start-screen">
+    <div class="title-container">
+        <div class="title-group">
+            <div class="cn-text">抽!</div>
+            <div class="en-text">DRAW</div>
+        </div>
+        <div class="title-group">
+            <div class="cn-text">跑!</div>
+            <div class="en-text">DASH</div>
+        </div>
+        <div class="title-group">
+            <div class="cn-text">爆!</div>
+            <div class="en-text">BUST</div>
+        </div>
+    </div>
+
+    <div class="menu-buttons">
+        <button id="btn-start" class="menu-btn start-btn">开始游戏</button>
+        <button id="btn-rules" class="menu-btn rules-btn">规则介绍</button>
+    </div>
+
+    <div class="footer-text">v1.0.0 by PikaZHJ</div>
+</div>
+
+<div id="setup-screen" class="hidden">
+    <h2 class="setup-title">选择电脑玩家数量</h2>
+
+    <div class="counter-container">
+        <button id="btn-minus" class="counter-btn">-</button>
+        <span id="ai-count-display">3</span>
+        <button id="btn-plus" class="counter-btn">+</button>
+    </div>
+
+    <button id="btn-launch" class="menu-btn start-btn">进入游戏</button>
+    <button id="btn-back" class="text-btn">返回</button>
+</div>
+
+<div id="rules-modal" class="hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>游戏规则</h2>
+            <button id="btn-close-rules" class="close-btn">×</button>
+        </div>
+        <div class="modal-body">
+            <p>...规则内容...</p>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { launchGame } from './js/main.js';
+
+    // UI 元素
+    const startScreen = document.getElementById('start-screen');
+    const setupScreen = document.getElementById('setup-screen');
+    const rulesModal = document.getElementById('rules-modal');
+
+    const btnStart = document.getElementById('btn-start');
+    const btnRules = document.getElementById('btn-rules');
+    const btnCloseRules = document.getElementById('btn-close-rules');
+
+    const btnMinus = document.getElementById('btn-minus');
+    const btnPlus = document.getElementById('btn-plus');
+    const countDisplay = document.getElementById('ai-count-display');
+    const btnLaunch = document.getElementById('btn-launch');
+    const btnBack = document.getElementById('btn-back');
+
+    // 状态变量
+    let aiCount = 3; // 默认3个电脑
+
+    // --- 事件监听 ---
+
+    // 1. 点击“开始游戏” -> 跳转到设置页
+    btnStart.addEventListener('click', () => {
+        startScreen.classList.add('hidden');
+        setupScreen.classList.remove('hidden');
+    });
+
+    // 2. 计数器逻辑
+    btnMinus.addEventListener('click', () => {
+        if (aiCount > 1) {
+            aiCount--;
+            updateDisplay();
+        }
+    });
+
+    btnPlus.addEventListener('click', () => {
+        if (aiCount < 5) {
+            aiCount++;
+            updateDisplay();
+        }
+    });
+
+    function updateDisplay() {
+        countDisplay.textContent = aiCount;
+        // 简单的视觉反馈：达到极限时变灰
+        btnMinus.style.opacity = aiCount === 1 ? '0.3' : '1';
+        btnPlus.style.opacity = aiCount === 5 ? '0.3' : '1';
+    }
+
+    // 3. 点击“进入游戏” -> 启动 Phaser
+    btnLaunch.addEventListener('click', () => {
+        setupScreen.classList.add('hidden');
+        // 调用 main.js 里的启动函数，传入电脑数量
+        launchGame(aiCount);
+    });
+
+    // 4. 返回主菜单
+    btnBack.addEventListener('click', () => {
+        setupScreen.classList.add('hidden');
+        startScreen.classList.remove('hidden');
+    });
+
+    // 5. 规则相关
+    btnRules.addEventListener('click', () => rulesModal.classList.remove('hidden'));
+    btnCloseRules.addEventListener('click', () => rulesModal.classList.add('hidden'));
+
+    // 初始化显示
+    updateDisplay();
+</script>
 </body>
 </html>
