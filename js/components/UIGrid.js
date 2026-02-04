@@ -42,11 +42,7 @@ export default class UIGrid {
             this.coordinates[gridIndex] = {x: px, y: py};
         });
 
-        // 起点 (0号格)
-        let zeroPx = startX + 6 * (size + gap);
-        let zeroPy = startY + 7 * (size + gap);
-        this.drawSingleGrid(zeroPx, zeroPy, 0, true, true);
-        this.coordinates[0] = {x: zeroPx, y: zeroPy};
+        
     }
 
     drawSingleGrid(x, y, text, isSpecial, isStart = false) {

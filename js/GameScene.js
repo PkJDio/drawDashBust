@@ -68,7 +68,7 @@ export default class GameScene extends Phaser.Scene {
 
         this.ui.refreshTopPanel(this.players);
         this.ui.updateBtmPanel(this.players[0]);
-        this.players.forEach((p, i) => { p.position = 0; this.ui.drawPlayerAt(0, i, p.name); });
+        this.players.forEach((p, i) => { p.position = 1; this.ui.drawPlayerAt(1, i, p.name); });
         this.ui.resetMidInfo();
         this.ui.updateDeckCount(this.cardManager.mainDeckCache.length);
 
@@ -80,15 +80,17 @@ export default class GameScene extends Phaser.Scene {
     createPlayers(aiCount) {
         const p = [{
             id:0, name:"我 (P1)", isAI:false,
-            totalScore:0, roundScore:0, position:0,
+            totalScore:0, roundScore:0,
+            position: 1, // 🟢 修改这里：0 -> 1
             cards:[], items:[], upgradeCount:0,
-            state:'playing', hasSkippedItemPhase: false
+            state:'playing'
         }];
         for(let i=0; i<aiCount; i++) p.push({
             id:i+1, name:`电脑${String.fromCharCode(65+i)}`, isAI:true,
-            totalScore:0, roundScore:0, position:0,
+            totalScore:0, roundScore:0,
+            position: 1, // 🟢 修改这里：0 -> 1
             cards:[], items:[], upgradeCount:0,
-            state:'waiting', hasSkippedItemPhase: false
+            state:'waiting'
         });
         return p;
     }
