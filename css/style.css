@@ -11,6 +11,11 @@ body {
     color: #5d4037; /* 深褐文字 */
 }
 
+/* 优先使用系统自带的彩色 Emoji 字体，防止 emoji 显示为黑白 */
+body {
+    font-family: "Nunito", "Microsoft YaHei", "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Android Emoji", sans-serif;
+}
+
 #game-container {
     box-shadow: 0 0 20px rgba(0,0,0,0.1); /* 给游戏画面加个轻阴影 */
     border-radius: 15px; /* 游戏容器圆角 */
@@ -76,6 +81,7 @@ body {
     box-shadow: 0 6px 0 rgba(0,0,0,0.1); /* 积木风格阴影 */
     transition: all 0.1s;
     color: #fff;
+    font-family: inherit;
 }
 
 .menu-btn:active {
@@ -132,7 +138,7 @@ body {
     color: #90a4ae; text-decoration: underline; font-size: 16px; cursor: pointer;
 }
 
-/* --- 规则弹窗 --- */
+/* --- 规则弹窗 (基础框架) --- */
 #rules-modal {
     position: absolute; top: 0; left: 50%; transform: translateX(-50%);
     width: 100%; height: 100%; max-width: 720px;
@@ -168,16 +174,123 @@ body {
     padding: 20px; overflow-y: auto; color: #546e7a; line-height: 1.6;
 }
 
-.rule-section h3 { color: #ff7043; margin-top: 0; }
+/* --- 规则详情内容样式 (新加) --- */
+.rules-container {
+    text-align: left;
+    padding: 0 10px;
+}
+
+.rules-container h3 {
+    color: #d84315;
+    border-bottom: 2px solid #ffab91;
+    padding-bottom: 5px;
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+
+.rules-container ul {
+    padding-left: 20px;
+    margin: 0;
+}
+
+.rules-container li {
+    margin-bottom: 8px;
+}
+
+/* 道具标签样式 */
+.item-tag {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: bold;
+    color: #fff;
+    margin-right: 5px;
+}
+.tag-def { background-color: #4caf50; } /* 防御 */
+.tag-atk { background-color: #f44336; } /* 攻击 */
+.tag-bonus { background-color: #ff9800; } /* 奖励 */
+
+
+/* =========================================
+   🟢 游戏内 HTML 菜单样式 (暂停菜单)
+   ========================================= */
+
+/* 右下角菜单按钮 */
+.html-ui-btn {
+    position: absolute;
+    bottom: 30px; /* 距离底部 */
+    right: 30px;  /* 距离右侧 */
+    z-index: 5000; /* 保证在所有 Canvas 内容之上 */
+
+    background-color: #78909c;
+    color: white;
+    border: none;
+    border-radius: 50%; /* 圆形按钮 */
+    width: 60px; height: 60px;
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    transition: transform 0.1s, background-color 0.2s;
+    display: flex; justify-content: center; align-items: center;
+    font-family: inherit;
+    /* 禁止用户选择文本，防止长按选中 */
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.html-ui-btn:active { transform: scale(0.95); }
+.html-ui-btn:hover { background-color: #607d8b; }
+
+/* 菜单遮罩层 */
+#html-menu-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(5px);
+    z-index: 6000;
+    display: flex; justify-content: center; align-items: center;
+}
+
+/* 菜单弹窗盒子 */
+.html-menu-box {
+    background-color: #fff8e1;
+    border: 4px solid #8d6e63;
+    border-radius: 20px;
+    padding: 30px;
+    width: 280px;
+    display: flex; flex-direction: column; gap: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.html-menu-title {
+    text-align: center; color: #5d4037; margin: 0 0 15px 0;
+    font-size: 28px; border-bottom: 2px dashed #d7ccc8; padding-bottom: 10px;
+}
+
+/* 菜单项按钮 */
+.html-menu-item {
+    padding: 12px; border: none; border-radius: 10px;
+    font-size: 18px; font-weight: bold; color: white;
+    cursor: pointer; transition: filter 0.2s;
+    font-family: inherit;
+}
+.html-menu-item:hover { filter: brightness(1.1); }
+.html-menu-item:active { transform: translateY(2px); }
+
+/* 按钮颜色变体 */
+.html-menu-item.resume { background-color: #66bb6a; box-shadow: 0 4px 0 #388e3c; }
+.html-menu-item.normal { background-color: #42a5f5; box-shadow: 0 4px 0 #1976d2; }
+.html-menu-item.warning { background-color: #ef5350; box-shadow: 0 4px 0 #d32f2f; }
+
+/* 弹窗出现动画 */
+@keyframes popIn {
+    from { transform: scale(0.8); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
 
 @keyframes bounce {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-10px); }
-}
-
-
-/* 建议添加到你的 CSS 文件中 */
-body {
-    /* 优先使用系统自带的彩色 Emoji 字体 */
-    font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Android Emoji", sans-serif;
 }

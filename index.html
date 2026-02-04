@@ -7,46 +7,113 @@
     <link rel="stylesheet" href="css/style.css">
     <script src="js/phaser.min.js"></script>
     <style>
-        /* 补充规则弹窗的内部样式 */
+        /* --- 补充规则弹窗的内部样式 --- */
         .rules-container {
-            text-align: left;
-            padding: 0 10px;
-            font-size: 16px;
-            line-height: 1.6;
-            color: #333;
-            max-height: 60vh; /* 防止内容过长溢出 */
-            overflow-y: auto; /* 超出可滚动 */
+            text-align: left; padding: 0 10px; font-size: 16px; line-height: 1.6; color: #333;
+            max-height: 60vh; overflow-y: auto;
         }
         .rules-container h3 {
-            color: #d84315;
-            border-bottom: 2px solid #ffab91;
-            padding-bottom: 5px;
-            margin-top: 20px;
-            margin-bottom: 10px;
+            color: #d84315; border-bottom: 2px solid #ffab91; padding-bottom: 5px;
+            margin-top: 20px; margin-bottom: 10px;
         }
-        .rules-container ul {
-            padding-left: 20px;
-            margin: 0;
-        }
-        .rules-container li {
-            margin-bottom: 8px;
-        }
+        .rules-container ul { padding-left: 20px; margin: 0; }
+        .rules-container li { margin-bottom: 8px; }
         .item-tag {
-            display: inline-block;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: bold;
-            color: #fff;
-            margin-right: 5px;
+            display: inline-block; padding: 2px 6px; border-radius: 4px;
+            font-size: 14px; font-weight: bold; color: #fff; margin-right: 5px;
         }
-        .tag-def { background-color: #4caf50; } /* 防御 */
-        .tag-atk { background-color: #f44336; } /* 攻击 */
-        .tag-bonus { background-color: #ff9800; } /* 奖励 */
+        .tag-def { background-color: #4caf50; }
+        .tag-atk { background-color: #f44336; }
+        .tag-bonus { background-color: #ff9800; }
+
+        /* --- 🟢 新增：游戏内 HTML 菜单样式 --- */
+
+        /* 右下角菜单按钮 */
+        .html-ui-btn {
+            position: absolute;
+            bottom: 30px; /* 放在底部 */
+            right: 30px;  /* 放在右边 */
+            z-index: 5000; /* 保证在所有 Canvas 内容之上 */
+
+            background-color: #78909c;
+            color: white;
+            border: none;
+            border-radius: 50%; /* 圆形按钮更适合角落 */
+            width: 60px; height: 60px;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: transform 0.1s, background-color 0.2s;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .html-ui-btn:active { transform: scale(0.95); }
+        .html-ui-btn:hover { background-color: #607d8b; }
+
+        /* 菜单遮罩层 */
+        #html-menu-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            z-index: 6000;
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        /* 菜单弹窗盒子 */
+        .html-menu-box {
+            background-color: #fff8e1;
+            border: 4px solid #8d6e63;
+            border-radius: 20px;
+            padding: 30px;
+            width: 280px;
+            display: flex; flex-direction: column; gap: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .html-menu-title {
+            text-align: center; color: #5d4037; margin: 0 0 15px 0;
+            font-size: 28px; border-bottom: 2px dashed #d7ccc8; padding-bottom: 10px;
+        }
+
+        /* 菜单项按钮 */
+        .html-menu-item {
+            padding: 12px; border: none; border-radius: 10px;
+            font-size: 18px; font-weight: bold; color: white;
+            cursor: pointer; transition: filter 0.2s;
+            font-family: inherit;
+        }
+        .html-menu-item:hover { filter: brightness(1.1); }
+        .html-menu-item:active { transform: translateY(2px); }
+
+        .html-menu-item.resume { background-color: #66bb6a; box-shadow: 0 4px 0 #388e3c; }
+        .html-menu-item.normal { background-color: #42a5f5; box-shadow: 0 4px 0 #1976d2; }
+        .html-menu-item.warning { background-color: #ef5350; box-shadow: 0 4px 0 #d32f2f; }
+
+        @keyframes popIn {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
+
 <div id="game-container"></div>
+
+<button id="html-menu-btn" class="html-ui-btn hidden">☰</button>
+
+<div id="html-menu-overlay" class="hidden">
+    <div class="html-menu-box">
+        <h2 class="html-menu-title">游戏暂停</h2>
+
+        <button id="btn-resume" class="html-menu-item resume">回到游戏</button>
+        <button id="btn-restart" class="html-menu-item normal">重新开始</button>
+        <button id="btn-surrender" class="html-menu-item warning">放弃本局</button>
+        <button id="btn-home" class="html-menu-item normal">回到首页</button>
+    </div>
+</div>
 
 <div id="start-screen">
     <div class="title-container">
@@ -97,45 +164,25 @@
                     <h3>🏆 胜利条件</h3>
                     <p>通过抽牌累积点数，棋子在棋盘上移动。率先累积总分达到 <strong>200分</strong> 的玩家获胜。</p>
                 </section>
-
                 <section>
                     <h3>🎲 基础玩法</h3>
                     <ul>
                         <li><strong>回合流程</strong>：轮到你时，可以选择【抽牌】或【放弃】。</li>
-                        <li><strong>抽牌</strong>：
-                            <ul>
-                                <li><strong>数字牌</strong>：获得对应分数，棋子前进对应步数。</li>
-                                <li><strong>功能牌</strong>：触发特殊效果（如冻结对手、翻倍分数）。</li>
-                            </ul>
-                        </li>
-                        <li><strong>💥 爆牌 (BUST)</strong>：如果你抽到的数字牌与你<strong>本轮手牌</strong>中已有的数字重复，则发生爆炸！本轮得分归零，强制结束回合。</li>
-                        <li><strong>🔒 放弃 (BANK)</strong>：如果你觉得风险太高，可以选择“放弃”。本轮当前得分将安全计入总分，并结束回合。</li>
+                        <li><strong>抽牌</strong>：获得数字分或功能牌。</li>
+                        <li><strong>💥 爆牌</strong>：抽到手牌中已有的数字即爆牌，本轮0分。</li>
+                        <li><strong>🔒 放弃</strong>：见好就收，将本轮得分存入总分。</li>
                     </ul>
                 </section>
-
                 <section>
-                    <h3>🎁 道具获取与特殊格</h3>
-                    <p>棋盘上设有金色的<strong>特殊奖励格</strong>（第 1, 6, 12, 18 格）。</p>
-                    <ul>
-                        <li><strong>获取方式</strong>：当你的棋子移动后<strong>刚好停留</strong>在特殊格上时，系统会免费赠送一张<strong>功能卡</strong>或<strong>防御道具</strong>。</li>
-                        <li><strong>使用方式</strong>：
-                            <ul>
-                                <li><strong>主动卡</strong>（如冻结）：抽到即刻触发，需选择目标。</li>
-                                <li><strong>被动道具</strong>（如复活）：自动存入底部道具栏，在关键时刻（如快爆牌时）自动触发。</li>
-                            </ul>
-                        </li>
-                    </ul>
+                    <h3>🎁 道具与特殊格</h3>
+                    <p>停留在金色的特殊格（1, 6, 12, 18）可获得强力道具。</p>
                 </section>
-
                 <section>
                     <h3>🃏 道具图鉴</h3>
                     <ul>
-                        <li><span class="item-tag tag-def">复</span> <strong>第二次机会</strong>：被动神器。当你抽到重复数字即将爆牌时，自动消耗此道具抵消该卡，保住分数并安全结束回合。</li>
-                        <li><span class="item-tag tag-def">闪</span> <strong>快闪</strong>：被动防御。当对手对你使用“冻结”等技能时，自动消耗此道具进行格挡。</li>
-                        <li><span class="item-tag tag-atk">冻</span> <strong>冻结</strong>：指定一名对手，使其下回合无法行动（跳过）。</li>
-                        <li><span class="item-tag tag-atk">三</span> <strong>翻3张</strong>：指定一名对手（或自己），强制其连续快速抽取3张牌，极大概率导致其爆牌。</li>
-                        <li><span class="item-tag tag-bonus">胆</span> <strong>试胆竞速</strong>：发起 1v1 对决！双方从牌库盲抽，比拼点数总和，赢家获得额外奖励分。</li>
-                        <li><span class="item-tag tag-bonus">双</span> <strong>无双模式</strong>：本轮后续每次点击“抽牌”都会一次性抽取 2 张，高风险高回报！</li>
+                        <li><span class="item-tag tag-def">复</span> <strong>第二次机会</strong>：抵消一次爆牌。</li>
+                        <li><span class="item-tag tag-atk">冻</span> <strong>冻结</strong>：跳过对手一回合。</li>
+                        <li><span class="item-tag tag-bonus">双</span> <strong>无双模式</strong>：每次抽两张牌。</li>
                     </ul>
                 </section>
             </div>
@@ -144,75 +191,146 @@
 </div>
 
 <script type="module">
-    import { launchGame } from './js/main.js';
+    import { launchGame, getGlobalStats } from './js/main.js';
 
-    // UI 元素
-    const startScreen = document.getElementById('start-screen');
-    const setupScreen = document.getElementById('setup-screen');
-    const rulesModal = document.getElementById('rules-modal');
-
-    const btnStart = document.getElementById('btn-start');
-    const btnRules = document.getElementById('btn-rules');
-    const btnCloseRules = document.getElementById('btn-close-rules');
-
-    const btnMinus = document.getElementById('btn-minus');
-    const btnPlus = document.getElementById('btn-plus');
-    const countDisplay = document.getElementById('ai-count-display');
-    const btnLaunch = document.getElementById('btn-launch');
-    const btnBack = document.getElementById('btn-back');
-
-    // 状态变量
-    let aiCount = 3; // 默认3个电脑
-
-    // --- 事件监听 ---
-
-    // 1. 点击“开始游戏” -> 跳转到设置页
-    btnStart.addEventListener('click', () => {
-        startScreen.classList.add('hidden');
-        setupScreen.classList.remove('hidden');
-    });
-
-    // 2. 计数器逻辑
-    btnMinus.addEventListener('click', () => {
-        if (aiCount > 1) {
-            aiCount--;
-            updateDisplay();
-        }
-    });
-
-    btnPlus.addEventListener('click', () => {
-        if (aiCount < 5) {
-            aiCount++;
-            updateDisplay();
-        }
-    });
-
-    function updateDisplay() {
-        countDisplay.textContent = aiCount;
-        // 简单的视觉反馈：达到极限时变灰
-        btnMinus.style.opacity = aiCount === 1 ? '0.3' : '1';
-        btnPlus.style.opacity = aiCount === 5 ? '0.3' : '1';
+    function formatTime(seconds) {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+        return `${(h<10?'0'+h:h)}:${(m<10?'0'+m:m)}:${(s<10?'0'+s:s)}`;
     }
 
-    // 3. 点击“进入游戏” -> 启动 Phaser
-    btnLaunch.addEventListener('click', () => {
-        setupScreen.classList.add('hidden');
-        // 调用 main.js 里的启动函数，传入电脑数量
-        launchGame(aiCount);
+    window.addEventListener('DOMContentLoaded', () => {
+        // UI 元素
+        const startScreen = document.getElementById('start-screen');
+        const setupScreen = document.getElementById('setup-screen');
+        const rulesModal = document.getElementById('rules-modal');
+        const btnStart = document.getElementById('btn-start');
+        const btnRules = document.getElementById('btn-rules');
+        const btnCloseRules = document.getElementById('btn-close-rules');
+        const menuButtonsDiv = document.querySelector('.menu-buttons');
+        const btnMinus = document.getElementById('btn-minus');
+        const btnPlus = document.getElementById('btn-plus');
+        const countDisplay = document.getElementById('ai-count-display');
+        const btnLaunch = document.getElementById('btn-launch');
+        const btnBack = document.getElementById('btn-back');
+
+        // 🟢 1. 动态创建“确认弹窗”
+        const confirmModal = document.createElement('div');
+        confirmModal.id = 'confirm-modal';
+        confirmModal.style.cssText = `
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); z-index: 10001;
+            justify-content: center; align-items: center;
+        `;
+        confirmModal.innerHTML = `
+            <div style="background-color: #fff8e1; width: 85%; max-width: 450px; padding: 30px; border-radius: 20px; border: 4px solid #8d6e63; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.3);">
+                <h2 style="color: #5d4037; margin-bottom: 20px; font-size: 28px;">提示</h2>
+                <p style="font-size: 20px; color: #333; margin-bottom: 30px; line-height: 1.5;">开始新游戏将覆盖当前的进度。<br>确定要继续吗？</p>
+                <div style="display: flex; justify-content: space-around;">
+                    <button id="btn-confirm-no" style="background-color: #90a4ae; color: white; border: none; padding: 12px 30px; font-size: 18px; border-radius: 12px; cursor: pointer; font-weight: bold;">取消</button>
+                    <button id="btn-confirm-yes" style="background-color: #ff7043; color: white; border: none; padding: 12px 30px; font-size: 18px; border-radius: 12px; cursor: pointer; font-weight: bold;">确定</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(confirmModal);
+
+        const btnConfirmYes = document.getElementById('btn-confirm-yes');
+        const btnConfirmNo = document.getElementById('btn-confirm-no');
+        btnConfirmNo.onclick = () => confirmModal.style.display = 'none';
+
+        // 🟢 2. 动态创建“游戏记录”弹窗
+        const recordModal = document.createElement('div');
+        recordModal.id = 'record-modal';
+        recordModal.style.cssText = `
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); z-index: 10000;
+            justify-content: center; align-items: center;
+        `;
+        recordModal.innerHTML = `
+            <div style="background-color: #fff8e1; width: 85%; max-width: 400px; padding: 25px; border-radius: 20px; border: 4px solid #8d6e63; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.3);">
+                <h2 style="color: #5d4037; margin-bottom: 20px; font-size: 28px;">🏆 游戏记录</h2>
+                <div style="margin: 20px 0; font-size: 18px; color: #333; line-height: 2.2; text-align: left; padding-left: 10%;">
+                    <p>🎮 完成游戏：<span id="stat-completed" style="font-weight:bold; color:#e65100; float:right; margin-right:10%">0 局</span></p>
+                    <p>🥇 获得第一：<span id="stat-wins" style="font-weight:bold; color:#4caf50; float:right; margin-right:10%">0 次</span></p>
+                    <p>⏱️ 累计时间：<span id="stat-time" style="font-weight:bold; color:#1976d2; float:right; margin-right:10%">00:00:00</span></p>
+                </div>
+                <button id="btn-close-record" style="background-color: #8d6e63; color: white; border: none; padding: 10px 30px; font-size: 18px; border-radius: 12px; cursor: pointer; margin-top: 10px; font-weight:bold;">关闭</button>
+            </div>
+        `;
+        document.body.appendChild(recordModal);
+        document.getElementById('btn-close-record').onclick = () => recordModal.style.display = 'none';
+
+        // 🟢 3. 游戏记录按钮
+        const btnRecord = document.createElement('button');
+        btnRecord.innerText = "游戏记录";
+        btnRecord.className = "menu-btn";
+        btnRecord.style.backgroundColor = "#795548";
+        btnRecord.style.marginTop = "15px";
+        if (menuButtonsDiv) {
+            menuButtonsDiv.appendChild(btnRecord);
+        } else if (btnRules) {
+            btnRules.parentNode.insertBefore(btnRecord, btnRules.nextSibling);
+        }
+
+        btnRecord.onclick = () => {
+            const stats = getGlobalStats();
+            document.getElementById('stat-completed').innerText = stats.gamesCompleted + " 局";
+            document.getElementById('stat-wins').innerText = stats.wins + " 次";
+            document.getElementById('stat-time').innerText = formatTime(stats.totalSeconds);
+            recordModal.style.display = 'flex';
+        };
+
+        // 🟢 4. 回到游戏按钮
+        const hasSave = localStorage.getItem('ddb_save');
+        if (hasSave) {
+            const btnContinue = document.createElement('button');
+            btnContinue.innerText = "回到游戏";
+            btnContinue.className = "menu-btn";
+            btnContinue.style.backgroundColor = "#4caf50";
+            btnContinue.style.marginBottom = "15px";
+            if (menuButtonsDiv && btnStart) menuButtonsDiv.insertBefore(btnContinue, btnStart);
+
+            btnContinue.onclick = () => {
+                launchGame(3, true);
+            };
+        }
+
+        let aiCount = 3;
+
+        // 🟢 5. 开始游戏逻辑
+        btnStart.onclick = () => {
+            if (hasSave) {
+                confirmModal.style.display = 'flex';
+                btnConfirmYes.onclick = () => {
+                    confirmModal.style.display = 'none';
+                    localStorage.removeItem('ddb_save');
+                    startScreen.classList.add('hidden');
+                    setupScreen.classList.remove('hidden');
+                };
+            } else {
+                startScreen.classList.add('hidden');
+                setupScreen.classList.remove('hidden');
+            }
+        };
+
+        btnLaunch.onclick = () => {
+            launchGame(aiCount, false);
+        };
+
+        // 其他事件绑定
+        btnMinus.onclick = () => { if (aiCount > 1) { aiCount--; updateDisplay(); } };
+        btnPlus.onclick = () => { if (aiCount < 5) { aiCount++; updateDisplay(); } };
+        btnBack.onclick = () => { setupScreen.classList.add('hidden'); startScreen.classList.remove('hidden'); };
+        btnRules.onclick = () => rulesModal.classList.remove('hidden');
+        btnCloseRules.onclick = () => rulesModal.classList.add('hidden');
+
+        function updateDisplay() {
+            countDisplay.textContent = aiCount;
+            btnMinus.style.opacity = aiCount === 1 ? '0.3' : '1';
+            btnPlus.style.opacity = aiCount === 5 ? '0.3' : '1';
+        }
     });
-
-    // 4. 返回主菜单
-    btnBack.addEventListener('click', () => {
-        setupScreen.classList.add('hidden');
-        startScreen.classList.remove('hidden');
-    });
-
-    // 5. 规则相关
-    btnRules.addEventListener('click', () => rulesModal.classList.remove('hidden'));
-    btnCloseRules.addEventListener('click', () => rulesModal.classList.add('hidden'));
-
-    // 初始化显示
-    updateDisplay();
 </script>
 </body>
 </html>

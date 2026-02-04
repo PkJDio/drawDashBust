@@ -1,43 +1,21 @@
-import { ITEM_TYPES, ITEM_DATA, UPGRADE_PRICES } from '../ItemConfig.js';
+import { ITEM_DATA } from '../ItemConfig.js';
 
 export default class ShopManager {
     constructor(scene) {
         this.scene = scene;
-        this.shopInventory = [];
         this.shopQueue = [];
     }
 
     startShopPhase() {
-        const shopSize = this.scene.players.length + 2;
-        this.shopInventory = [];
-        const keys = Object.values(ITEM_TYPES);
+        console.log("=== 商店开启 ===");
 
-        for(let i=0; i<shopSize; i++) {
-            const randomType = Phaser.Utils.Array.GetRandom(keys);
-            const item = { ...ITEM_DATA[randomType], type: randomType, id: i };
-            this.shopInventory.push(item);
-        }
-
-        // --- 新增：控制台调试打印，验证排序逻辑 ---
-        console.log("=== 商店购买顺序计算 ===");
-        this.scene.players.forEach(p => {
-            const isBustOrFrozen = (p.state === 'bust' || p.state === 'frozen');
-            const sortScore = isBustOrFrozen ? 0 : p.roundScore;
-            console.log(`玩家: ${p.name}, 状态: ${p.state}, 原始本轮分: ${p.roundScore}, 排序计分: ${sortScore}, 总分: ${p.totalScore}`);
-        });
-
-        // 排序规则：本轮有效分数（爆牌算0）从小到大 -> 总分从小到大
+        // 排序：分低的先买
         this.shopQueue = [...this.scene.players].sort((a, b) => {
             const scoreA = (a.state === 'bust' || a.state === 'frozen') ? 0 : a.roundScore;
             const scoreB = (b.state === 'bust' || b.state === 'frozen') ? 0 : b.roundScore;
-
             if (scoreA !== scoreB) return scoreA - scoreB;
-            if (a.totalScore !== b.totalScore) return a.totalScore - b.totalScore;
-            return Math.random() - 0.5;
+            return a.totalScore - b.totalScore;
         });
-
-        console.log("最终排序:", this.shopQueue.map(p => p.name));
-        console.log("========================");
 
         this.scene.toast.show("🛍️ 商店开启！", 1500);
         this.scene.time.delayedCall(1600, () => {
@@ -52,29 +30,49 @@ export default class ShopManager {
         }
 
         const shopper = this.shopQueue.shift();
-        const currentInventoryView = this.updateShopInventoryPrices(shopper);
+
+        // 🟢 修改点：生成随机商品列表 (数量 = 玩家人数 + 2)
+        const randomItems = this.generateRandomShopItems(shopper);
 
         const delay = shopper.isAI ? 1000 : 500;
 
         this.scene.time.delayedCall(delay, () => {
             if (shopper.isAI) {
-                this.aiShopAction(shopper, currentInventoryView);
+                this.aiShopAction(shopper, randomItems);
             } else {
-                this.scene.modal.showShop(shopper, currentInventoryView, (result) => {
+                this.scene.modal.showShop(shopper, randomItems, (result) => {
                     this.resolveShopAction(shopper, result);
                 });
             }
         });
     }
 
-    updateShopInventoryPrices(player) {
-        return this.shopInventory.map(item => {
-            let finalCost = item.baseCost;
-            if (item.type === ITEM_TYPES.UPGRADE) {
-                const priceIdx = Math.min(player.upgradeCount, UPGRADE_PRICES.length - 1);
-                finalCost = UPGRADE_PRICES[priceIdx];
+    // 🟢 新增：随机生成商品
+    generateRandomShopItems(player) {
+        const count = this.scene.players.length + 2; // 规则：人数+2
+        const allKeys = Object.keys(ITEM_DATA);
+
+        // 随机洗牌并取前 count 个
+        const shuffledKeys = Phaser.Utils.Array.Shuffle([...allKeys]).slice(0, count);
+
+        return shuffledKeys.map(key => {
+            const baseData = ITEM_DATA[key];
+            let finalPrice = baseData.price;
+
+            // 升级卡动态价格
+            if (key === 'upgrade') {
+                const count = player.upgradeBuyCount || 0;
+                finalPrice = 3 + Math.floor(count / 2);
+                if (finalPrice > 10) finalPrice = 10;
             }
-            return { ...item, cost: finalCost };
+
+            return {
+                type: key,
+                name: baseData.name,
+                desc: baseData.desc,
+                emoji: baseData.emoji,
+                cost: finalPrice
+            };
         });
     }
 
@@ -84,25 +82,31 @@ export default class ShopManager {
 
         let choice = null;
         if (affordable.length > 0) {
-            affordable.sort((a, b) => b.cost - a.cost);
-            const rand = Math.random();
-            if (rand < 0.5) choice = affordable[0];
-            else if (rand < 0.8) choice = Phaser.Utils.Array.GetRandom(affordable);
+            choice = Phaser.Utils.Array.GetRandom(affordable);
         }
 
-        if (choice) this.resolveShopAction(player, { action: 'buy', item: choice });
-        else this.resolveShopAction(player, { action: 'pass' });
+        if (choice) {
+            this.resolveShopAction(player, { action: 'buy', item: choice });
+        } else {
+            this.resolveShopAction(player, { action: 'pass' });
+        }
     }
 
     resolveShopAction(player, result) {
         if (result.action === 'buy') {
             const item = result.item;
+            if (player.items.length >= 5) {
+                this.scene.toast.show("道具栏已满！", 1500);
+                this.scene.time.delayedCall(1000, () => this.processShopTurn());
+                return;
+            }
+
             player.totalScore -= item.cost;
             player.items.push(item.type);
-            if (item.type === ITEM_TYPES.UPGRADE) player.upgradeCount++;
 
-            const idx = this.shopInventory.findIndex(i => i.id === item.id);
-            if (idx !== -1) this.shopInventory.splice(idx, 1);
+            if (item.type === 'upgrade') {
+                player.upgradeBuyCount = (player.upgradeBuyCount || 0) + 1;
+            }
 
             this.scene.toast.show(`${player.name} 购买了 【${item.name}】`, 1500);
             if (player.id === 0) this.scene.ui.updateBtmPanel(player);

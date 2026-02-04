@@ -10,6 +10,12 @@ export default class UIHand {
 
         this.itemObjects = [];
         this.onItemClick = null;
+
+        // 🟢 用于绘制选中高亮的图形对象
+        this.selectionGraphics = null;
+
+        // 🟢 新增：记录当前选中的道具索引 (-1 表示未选中)
+        this.selectedIndex = -1;
     }
 
     create() {
@@ -23,14 +29,41 @@ export default class UIHand {
         });
 
         this.group = this.scene.add.group();
+
+        // 初始化选中框图形 (层级要高一点，防止被遮挡)
+        this.selectionGraphics = this.scene.add.graphics().setDepth(100);
+        this.group.add(this.selectionGraphics);
     }
 
     setOnItemClick(callback) {
         this.onItemClick = callback;
     }
 
+    // 🟢 修改：清除选中的同时，必须重置索引状态
+    clearSelection() {
+        if (this.selectionGraphics) {
+            this.selectionGraphics.clear();
+        }
+        this.selectedIndex = -1; // 重置状态，防止下一次点击判断错误
+    }
+
+    // 内部方法，绘制选中框
+    drawSelection(x, y, width, height) {
+        this.selectionGraphics.clear();
+        // 绘制黄色发光边框
+        this.selectionGraphics.lineStyle(4, 0xffeb3b, 1); // 黄色，4px宽
+        this.selectionGraphics.strokeRoundedRect(x - 4, y - 4, width + 8, height + 8, 12);
+    }
+
     update(player) {
         this.group.clear(true, true);
+
+        // 重新创建 selectionGraphics (因为 clear 把它销毁了)
+        this.selectionGraphics = this.scene.add.graphics().setDepth(100);
+        this.group.add(this.selectionGraphics);
+
+        // 🟢 重置选中状态
+        this.selectedIndex = -1;
         this.itemObjects = [];
 
         if (!player) return;
@@ -52,33 +85,51 @@ export default class UIHand {
             });
         }
 
-        // 2. 道具 (修改：适应大卡片布局)
+        // 2. 道具
         let itemX = 150;
-        // 道具卡高100，这里让它向下一点，避免和文字重叠
         const itemY = startY + 110 + 25;
-        const itemGap = 75; // 加大间距 (60宽 + 15空隙)
+        const itemGap = 75;
 
         if (player.items) {
             player.items.forEach((itemType, index) => {
                 const data = ITEM_DATA[itemType];
                 if (data) {
-                    // 外部很难直接控制重绘选中态，这里简单根据 GameScene 状态不太好传
-                    // 我们依赖点击后的 UI 覆盖框或者重绘。
-                    // 暂时先绘制普通状态。
-                    const elems = this.cardDrawer.drawItem(itemX, itemY, data.name, null, false);
+                    // 🔒 闭包变量锁定：锁住当前循环的坐标
+                    const currentItemX = itemX;
+                    const currentItemY = itemY;
+
+                    const elems = this.cardDrawer.drawItem(currentItemX, currentItemY, data.name, null, false);
                     this.group.addMultiple(elems);
 
-                    // 交互区域扩大
-                    const zone = this.scene.add.zone(itemX + 30, itemY + 50, 60, 100).setInteractive();
+                    const itemW = 60;
+                    const itemH = 100;
+
+                    // 交互区域
+                    const zone = this.scene.add.zone(currentItemX + 30, currentItemY + 50, itemW, itemH).setInteractive();
+
+                    // 🟢 核心交互逻辑修改
                     zone.on('pointerdown', () => {
-                        // 传递 itemX, itemY 给上层，用于定位按钮
-                        if (this.onItemClick) this.onItemClick(itemType, index, itemX, itemY);
+                        // 判断：如果点击的是当前已经选中的道具
+                        if (this.selectedIndex === index) {
+                            // 逻辑 A: 取消选中
+                            this.clearSelection(); // 清除黄框和重置索引
+
+                            // 触发回调，传 null 表示取消
+                            if (this.onItemClick) this.onItemClick(null);
+                        } else {
+                            // 逻辑 B: 选中新的 (或者从 A 切换到 B)
+                            this.selectedIndex = index; // 更新索引
+                            this.drawSelection(currentItemX, currentItemY, itemW, itemH); // 绘制黄框
+
+                            // 触发回调，传具体道具信息
+                            if (this.onItemClick) this.onItemClick(itemType, index, currentItemX, currentItemY);
+                        }
                     });
                     this.group.add(zone);
 
-                    this.itemObjects.push({ type: itemType, index: index, x: itemX, y: itemY });
+                    this.itemObjects.push({ type: itemType, index: index, x: currentItemX, y: currentItemY });
                 }
-                itemX += itemGap;
+                itemX += itemGap; // 坐标递增
             });
         }
     }

@@ -89,6 +89,30 @@ export default class CardManager {
     }
 
     handleCardEffect(player, card, isBonusOrForced, shouldMove) {
+        if (player.prophecyGuess) {
+            let win = false;
+            let partial = false;
+            if (card.type === 'number') {
+                const v = card.value;
+                if (player.prophecyGuess === 'small' && v >= 0 && v <= 5) win = true;
+                if (player.prophecyGuess === 'big' && v >= 6 && v <= 12) win = true;
+            } else {
+                partial = true;
+            }
+
+            if (win) {
+                player.totalScore += 10;
+                this.scene.toast.show("🔮 预言正确！+10分");
+            } else if (partial) {
+                player.totalScore += 5;
+                this.scene.toast.show("🔮 抽到特殊卡！+5分");
+            } else {
+                this.scene.toast.show("🔮 预言失败");
+            }
+            player.prophecyGuess = null;
+            this.scene.ui.refreshTopPanel(this.scene.players);
+        }
+
         player.cards.push(card.value);
         if (player.id === 0) this.scene.ui.updateBtmPanel(player);
 
@@ -117,18 +141,28 @@ export default class CardManager {
     }
 
     handlePotentialBust(player, conflictCard) {
+        if (player.hasProtection) {
+            player.hasProtection = false;
+            player.cards.pop();
+
+            this.scene.toast.show("🔰 保护卡生效！\n已抵消本次爆牌。", 2000);
+            if(player.id === 0) this.scene.ui.updateBtmPanel(player);
+
+            this.scene.time.delayedCall(2000, () => {
+                this.scene.finishAction(player, true);
+            });
+            return;
+        }
+
         const reviveIndex = player.cards.findIndex(v => v === 'second_chance');
 
-        // --- 修复：复活逻辑 ---
         if (reviveIndex !== -1) {
             player.cards.splice(reviveIndex, 1);
-            player.cards.pop(); // 移除那张导致爆牌的卡
+            player.cards.pop();
 
             this.scene.toast.show(`${player.name} 复活！\n消耗【第二次机会】抵消 ${conflictCard.value}`, 2000);
             if(player.id===0) this.scene.ui.updateBtmPanel(player);
 
-            // 关键修正：不要把 state 设为 done，也不要直接 nextTurn。
-            // 而是调用 finishAction，让 GameScene 检查 forceDrawState 是否还有剩余次数。
             this.scene.time.delayedCall(2000, () => {
                 this.scene.finishAction(player, false);
             });
@@ -273,7 +307,12 @@ export default class CardManager {
         const ds = this.duelState;
         this.scene.ui.showActionButtons(false);
         this.scene.toast.show(`${ds.current.name} 放弃竞速`, 1000);
-        ds.current.state = 'done';
+
+        // 🟢 修改点：如果已经爆牌(bust)，不要覆盖为 done
+        if (ds.current.state !== 'bust') {
+            ds.current.state = 'done';
+        }
+
         this.scene.time.delayedCall(1100, () => this.endDuel(ds.current === ds.challenger ? ds.target : ds.challenger));
     }
 

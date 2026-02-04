@@ -2,6 +2,7 @@ import UICard from './components/UICard.js';
 import UIGrid from './components/UIGrid.js';
 import UIPlayerInfo from './components/UIPlayerInfo.js';
 import UIHand from './components/UIHand.js';
+import UIBetting from './components/UIBetting.js';
 
 export default class GameUI {
     constructor(scene) {
@@ -22,25 +23,38 @@ export default class GameUI {
         this.grid = new UIGrid(scene, this.layout, this.colors);
         this.playerInfo = new UIPlayerInfo(scene, this.layout, this.colors, this.cardDrawer);
         this.hand = new UIHand(scene, this.layout, this.colors, this.cardDrawer);
+        this.bettingPanel = new UIBetting(scene, this.layout);
+
         this.playerTokens = {};
         this.activeMarker = null;
         this.onDrawClick = null; this.onGiveUpClick = null; this.onUseItemClick = null; this.onSkipItemClick = null;
+        this.onConfirmBetClick = null;
+        // 🟢 已移除 onMenuClick
+
         this.midCardsGroup = null; this.deckPileGroup = null; this.duelGroup = null;
         this.deckPos = { x: 0, y: 0 }; this.midCardPos = { x: 0, y: 0 };
-
-        // 存储“放弃”按钮的位置，方便“使用”按钮对齐
         this.skipBtnPos = { x: 0, y: 0 };
     }
 
     init() {
         this.grid.drawZones(); this.grid.drawBoard(); this.gridCoordinates = this.grid.getCoordinates();
-        this.hand.create(); this.createMidInfo(); this.createActiveMarker();
+        this.hand.create();
+        this.bettingPanel.create();
+        this.createMidInfo();
+        this.createActiveMarker();
+        // 🟢 已移除 createMenuButton
     }
+
+    // 🟢 已移除 toggleMenuButton
 
     setButtonHandlers(onDraw, onGiveUp, onUseItem, onSkipItem) {
         this.onDrawClick = onDraw; this.onGiveUpClick = onGiveUp;
         this.onUseItemClick = onUseItem; this.onSkipItemClick = onSkipItem;
     }
+
+    setBetButtonHandler(callback) { this.onConfirmBetClick = callback; }
+
+    // 🟢 已移除 setMenuButtonHandler
 
     refreshTopPanel(players) { this.playerInfo.refresh(players); }
     updateBtmPanel(player) { this.hand.update(player); }
@@ -48,7 +62,11 @@ export default class GameUI {
 
     drawPlayerAt(gridId, playerIndex, fullPlayerName = "") {
         const targetPos = this.calculateTokenPos(gridId, playerIndex);
-        if (this.playerTokens[playerIndex]) { this.playerTokens[playerIndex].setPosition(targetPos.x, targetPos.y); return; }
+        if (this.playerTokens[playerIndex]) {
+            this.playerTokens[playerIndex].setPosition(targetPos.x, targetPos.y);
+            this.scene.children.bringToTop(this.playerTokens[playerIndex]);
+            return;
+        }
         const container = this.scene.add.container(targetPos.x, targetPos.y).setDepth(100);
         const circle = this.scene.add.circle(0, 0, 14, this.colors.player[playerIndex] || 0x000000).setStrokeStyle(3, 0xffffff);
         let shortName = "P" + (playerIndex + 1);
@@ -65,17 +83,42 @@ export default class GameUI {
     calculateTokenPos(gridId, playerIndex) {
         const pos = this.gridCoordinates[gridId];
         if (!pos) return {x:0, y:0};
-        const offsets = [{x: -26, y: -20}, {x: 0, y: -20}, {x: 26, y: -20}, {x: -26, y: 18}, {x: 0, y: 18}, {x: 26, y: 18}];
-        const offset = offsets[playerIndex % 6];
-        return { x: pos.x + 42.5 + offset.x, y: pos.y + 42.5 + offset.y };
+        const halfSize = this.layout.gridSize / 2;
+        const centerX = pos.x + halfSize;
+        const centerY = pos.y + halfSize;
+        const playersOnGrid = this.scene.players.filter(p => p.position === gridId).sort((a,b) => a.id - b.id);
+        const count = playersOnGrid.length;
+        const indexInGroup = playersOnGrid.findIndex(p => p.id === playerIndex);
+        if (indexInGroup === -1) return { x: centerX, y: centerY };
+        const R = 22; let offsetX = 0; let offsetY = 0;
+        switch (count) {
+            case 1: offsetX = 0; offsetY = 0; break;
+            case 2: offsetX = (indexInGroup === 0) ? -R + 5 : R - 5; break;
+            case 3: if (indexInGroup === 0) { offsetX = 0; offsetY = -R; } else if (indexInGroup === 1) { offsetX = -R; offsetY = R * 0.8; } else { offsetX = R; offsetY = R * 0.8; } break;
+            case 4: const d = R * 0.7; if (indexInGroup === 0) { offsetX = -d; offsetY = -d; } else if (indexInGroup === 1) { offsetX = d; offsetY = -d; } else if (indexInGroup === 2) { offsetX = -d; offsetY = d; } else { offsetX = d; offsetY = d; } break;
+            case 5: const angle5 = -90 + (indexInGroup * 72); const rad5 = Phaser.Math.DegToRad(angle5); offsetX = Math.cos(rad5) * R; offsetY = Math.sin(rad5) * R; break;
+            case 6: if (indexInGroup === 0) { offsetX = 0; offsetY = 0; } else { const angle6 = -90 + ((indexInGroup - 1) * 72); const rad6 = Phaser.Math.DegToRad(angle6); offsetX = Math.cos(rad6) * (R + 4); offsetY = Math.sin(rad6) * (R + 4); } break;
+            default: offsetX = (indexInGroup % 3 - 1) * 10; offsetY = (Math.floor(indexInGroup / 3) - 1) * 10; break;
+        }
+        return { x: centerX + offsetX, y: centerY + offsetY };
+    }
+
+    updateGridTokens(gridId) {
+        const playersOnGrid = this.scene.players.filter(p => p.position === gridId);
+        playersOnGrid.forEach(p => {
+            const targetPos = this.calculateTokenPos(gridId, p.id);
+            const token = this.playerTokens[p.id];
+            if (token) this.scene.tweens.add({ targets: token, x: targetPos.x, y: targetPos.y, duration: 200, ease: 'Power2' });
+        });
     }
 
     animatePlayerMove(playerIndex, pathArray, onComplete) {
         const token = this.playerTokens[playerIndex];
         if (!token) { if (onComplete) onComplete(); return; }
+        const playerColor = this.colors.player[playerIndex] || 0xffffff;
         const tweens = pathArray.map(gridId => {
             const target = this.calculateTokenPos(gridId, playerIndex);
-            return { targets: token, x: target.x, y: target.y, duration: 250, ease: 'Cubic.out' };
+            return { targets: token, x: target.x, y: target.y, duration: 250, ease: 'Cubic.out', onStart: () => { this.grid.flashGrid(gridId, playerColor); } };
         });
         if (tweens.length === 0) { this.scene.time.delayedCall(300, () => { if (onComplete) onComplete(); }); return; }
         this.scene.tweens.chain({ tweens: tweens, onComplete: onComplete });
@@ -123,52 +166,84 @@ export default class GameUI {
         this.actionButtonGroup = this.scene.add.group();
         this.btnDraw = this.createButton(centerX - 80, controlY, "抽牌", 0x66bb6a, () => { if (this.onDrawClick) this.onDrawClick(); });
         this.btnGiveUp = this.createButton(centerX + 80, controlY, "放弃", 0xef5350, () => { if (this.onGiveUpClick) this.onGiveUpClick(); });
+
+        this.btnConfirmBet = this.createButton(centerX, controlY, "确认结束", 0xfbc02d, () => {
+            if (this.onConfirmBetClick) this.onConfirmBetClick();
+        });
+        this.btnConfirmBet.container.setVisible(false);
+
         this.actionButtonGroup.addMultiple([this.btnDraw.container, this.btnGiveUp.container]);
 
         this.timerText = this.scene.add.text(centerX, centerY + 20, "", { fontSize: '60px', color: '#d84315', fontStyle: 'bold' }).setOrigin(0.5).setVisible(false);
 
-        // --- 修改 1：放弃按钮样式 (横向) ---
-        this.btnSkipItem = this.createButton(0, 0, "放弃", 0x90a4ae, () => { if (this.onSkipItemClick) this.onSkipItemClick(); });
-        this.btnSkipItem.bg.clear();
-        this.btnSkipItem.bg.fillStyle(0x90a4ae, 1);
-        this.btnSkipItem.bg.fillRoundedRect(-40, -25, 80, 50, 10);
-        this.btnSkipItem.bg.lineStyle(2, 0xffffff, 0.4);
-        this.btnSkipItem.bg.strokeRoundedRect(-40, -25, 80, 50, 10);
-        this.btnSkipItem.container.setVisible(false);
+        this.bettingTipsText = this.scene.add.text(centerX, centerY + 90, "点击下方图标下注 竞猜本轮停留位置\n猜中即可获得 对应倍率积分奖励", {
+            fontSize: '22px',
+            color: '#8d6e63',
+            align: 'center',
+            fontStyle: 'bold',
+            lineSpacing: 8,
+            padding: { top: 10, bottom: 10 }
+        }).setOrigin(0.5).setVisible(false);
 
+        // 放弃(跳过道具)按钮
+        this.btnSkipItem = this.createButton(0, 0, "不使用", 0x90a4ae, () => {
+            if (this.onSkipItemClick) this.onSkipItemClick();
+        }, 100, 50);
+
+        // 道具描述和使用按钮容器
         this.itemDescGroup = this.scene.add.container(centerX, controlY);
         this.itemDescGroup.setVisible(false);
-        this.itemDescText = this.scene.add.text(0, 0, "", { fontSize: '22px', color: '#5d4037', align: 'center', wordWrap: { width: 500 } }).setOrigin(0.5);
+        this.itemDescText = this.scene.add.text(0, 0, "", {
+            fontSize: '22px',
+            color: '#5d4037',
+            align: 'center',
+            wordWrap: { width: 500 },
+            padding: { top: 10, bottom: 10 }
+        }).setOrigin(0.5);
         this.itemDescGroup.add(this.itemDescText);
 
-        // --- 修改 2：使用按钮样式 (横向) ---
-        this.btnUseItem = this.createButton(0, 0, "使用", 0xff7043, () => { if (this.onUseItemClick) this.onUseItemClick(); });
-        this.btnUseItem.bg.clear();
-        this.btnUseItem.bg.fillStyle(0xff7043, 1);
-        this.btnUseItem.bg.fillRoundedRect(-40, -25, 80, 50, 10);
-        this.btnUseItem.bg.lineStyle(2, 0xffffff, 0.4);
-        this.btnUseItem.bg.strokeRoundedRect(-40, -25, 80, 50, 10);
-        this.btnUseItem.container.setVisible(false);
+        this.btnUseItem = this.createButton(0, 0, "使用", 0xff7043, () => {
+            if (this.onUseItemClick) this.onUseItemClick();
+        }, 80, 50);
 
         this.showActionButtons(false);
     }
 
-    createButton(x, y, label, color, callback) {
-        const w = 140; const h = 60;
+    // 🟢 已移除 createMenuButton
+
+    createButton(x, y, label, color, callback, width = 140, height = 60) {
+        const w = width;
+        const h = height;
         const container = this.scene.add.container(x, y);
+
+        // 初始背景
         const bg = this.scene.add.graphics();
         bg.fillStyle(color, 1); bg.fillRoundedRect(-w/2, -h/2, w, h, 15);
+
+        // 阴影
         bg.fillStyle(0x000000, 0.2); bg.fillRoundedRect(-w/2, -h/2 + 4, w, h, 15);
-        const text = this.scene.add.text(0, 0, label, { fontSize: '28px', color: '#ffffff', fontStyle: 'bold', padding: { top: 10, bottom: 10 } }).setOrigin(0.5);
+
+        const text = this.scene.add.text(0, 0, label, {
+            fontSize: '28px', color: '#ffffff', fontStyle: 'bold',
+            padding: { top: 10, bottom: 10, left: 5, right: 5 }
+        }).setOrigin(0.5);
+
         const zone = this.scene.add.zone(0, 0, w, h).setInteractive();
+
         zone.on('pointerdown', () => {
-            bg.clear(); bg.fillStyle(color, 1); bg.fillRoundedRect(-w/2, -h/2 + 2, w, h, 15);
+            bg.clear();
+            bg.fillStyle(0x000000, 0.2); bg.fillRoundedRect(-w/2, -h/2 + 4, w, h, 15);
+            bg.fillStyle(color, 1); bg.fillRoundedRect(-w/2, -h/2 + 2, w, h, 15);
+
             this.scene.time.delayedCall(100, () => {
-                bg.clear(); bg.fillStyle(color, 1); bg.fillRoundedRect(-w/2, -h/2, w, h, 15);
+                bg.clear();
+                bg.fillStyle(color, 1); bg.fillRoundedRect(-w/2, -h/2, w, h, 15);
                 bg.fillStyle(0x000000, 0.2); bg.fillRoundedRect(-w/2, -h/2 + 4, w, h, 15);
             });
+
             callback();
         });
+
         container.add([bg, text, zone]);
         return { container, bg, text, zone };
     }
@@ -262,13 +337,61 @@ export default class GameUI {
             this.btnDraw.zone.setInteractive();
             this.btnGiveUp.zone.setInteractive();
             this.btnUseItem.container.setVisible(false);
+
+            this.btnConfirmBet.container.setVisible(false);
+            this.btnConfirmBet.zone.disableInteractive();
         } else {
             this.btnDraw.zone.disableInteractive();
             this.btnGiveUp.zone.disableInteractive();
         }
     }
 
-    // --- 修改 3：放置按钮位置 ---
+    showBettingMode(playerBets, timeLeft) {
+        this.hand.group.setVisible(false);
+        this.bettingPanel.show(playerBets);
+
+        this.actionButtonGroup.setVisible(false);
+        this.btnConfirmBet.container.setVisible(true);
+        this.btnConfirmBet.zone.setInteractive();
+
+        this.timerText.setVisible(true).setText(timeLeft);
+
+        this.midPlayerText.setText("猜猜猜时间");
+        this.midPlayerText.setVisible(true);
+
+        if(this.bettingTipsText) this.bettingTipsText.setVisible(true);
+
+        this.midLabelText.setVisible(false);
+        this.midScoreText.setVisible(false);
+        this.deckCountText.setVisible(false);
+        this.deckPileGroup.setVisible(false);
+        // 🟢 已移除 this.btnMenu.container.setVisible(false);
+    }
+
+    hideBettingMode() {
+        this.hand.group.setVisible(true);
+        this.bettingPanel.hide();
+
+        this.btnConfirmBet.container.setVisible(false);
+        this.btnConfirmBet.zone.disableInteractive();
+
+        this.actionButtonGroup.setVisible(false);
+
+        this.timerText.setVisible(false);
+
+        if(this.bettingTipsText) this.bettingTipsText.setVisible(false);
+
+        this.midLabelText.setVisible(true);
+        this.midScoreText.setVisible(true);
+        this.deckCountText.setVisible(true);
+        this.deckPileGroup.setVisible(true);
+        // 🟢 已移除 this.btnMenu.container.setVisible(true);
+    }
+
+    updateBettingPanel(playerBets) {
+        this.bettingPanel.updateBets(playerBets);
+    }
+
     showItemUsageMode(timeLeft, player) {
         this.midLabelText.setVisible(false);
         this.deckCountText.setVisible(false);
@@ -278,21 +401,17 @@ export default class GameUI {
 
         if (player && player.id === 0 && player.items && player.items.length > 0) {
             const count = player.items.length;
-            const itemGap = 75;
-            const startX = 150;
-            // 最后一个道具中心: 150 + (count-1)*75
-            // 放弃按钮中心: startX + count*75 + 40(padding)
-            const btnX = startX + (count * itemGap) + 40;
-            // 垂直居中对齐 (道具卡高100，y是左上角)
-            // 道具y = 1280 - btm + 110 + 25 = 1280 - 0.2*1280 + 135 = ~1159
-            // CenterY = 1159 + 50 = 1209
+            const itemGap = 80;
+
+            const startX = 180;
+            const lastItemX = startX + (count - 1) * itemGap;
+            const btnX = lastItemX + 30 + 10 + 50;
             const btnY = 1280 - this.layout.btmHeight + 135 + 50;
 
             this.btnSkipItem.container.setPosition(btnX, btnY);
             this.btnSkipItem.container.setVisible(true);
             this.btnSkipItem.zone.setInteractive();
 
-            // 记录位置供 Use 按钮参考
             this.skipBtnPos = { x: btnX, y: btnY };
 
         } else {
@@ -306,6 +425,9 @@ export default class GameUI {
         this.deckPileGroup.setVisible(true);
         this.midScoreText.setVisible(true);
         this.timerText.setVisible(false);
+        if (this.hand) {
+            this.hand.clearSelection();
+        }
         this.btnSkipItem.container.setVisible(false);
         this.btnSkipItem.zone.disableInteractive();
         this.itemDescGroup.setVisible(false);
@@ -316,15 +438,11 @@ export default class GameUI {
         if (this.timerText.visible) this.timerText.setText(timeLeft);
     }
 
-    // --- 修改 4：使用按钮定位 ---
     showItemDescription(itemData, itemX, itemY) {
         this.actionButtonGroup.setVisible(false);
         this.itemDescGroup.setVisible(true);
         this.itemDescText.setText(`${itemData.name}:\n${itemData.desc}`);
 
-        // 放在“放弃”按钮的右边
-        // SkipBtn width=80 (40+40). gap=20. UseBtn width=80.
-        // UseX = SkipX + 40 + 20 + 40 = SkipX + 100
         if (this.skipBtnPos && this.skipBtnPos.x > 0) {
             this.btnUseItem.container.setPosition(this.skipBtnPos.x + 100, this.skipBtnPos.y);
             this.btnUseItem.container.setVisible(true);

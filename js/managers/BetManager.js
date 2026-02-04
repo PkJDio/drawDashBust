@@ -1,55 +1,51 @@
-import { FRUIT_TYPES, FRUIT_DATA } from '../ItemConfig.js';
+import { FRUIT_TYPES } from '../ItemConfig.js';
 
 export default class BetManager {
     constructor(scene) {
         this.scene = scene;
-        this.currentOdds = {}; // 当前轮次各水果的倍率
-        this.playerBets = {};  // 存储所有玩家的下注 { playerId: { apple: 10, sun: 0 ... } }
-        this.minBet = 10;      // 最小注码单位
+        this.currentOdds = {};
+        this.playerBets = {};
+        this.minBet = 10;
+
+        // 设定固定倍率配置
+        this.fixedOdds = {
+            'apple': 2,       // 苹果 (4个)
+            'watermelon': 3,  // 西瓜 (3个)
+            'papaya': 3,      // 木瓜 (3个)
+            'orange': 3,      // 橙子 (3个)
+            'bell': 3,        // 铃铛 (3个)
+            'star': 4,        // 双星 (2个)
+            'moon': 4,        // 月亮 (2个)
+            'sun': 4          // 太阳 (2个)
+        };
     }
 
-    // --- 每轮开始时调用：生成动态倍率 ---
+    // --- 初始化：设置固定倍率 ---
     generateRoundOdds() {
-        this.currentOdds = {};
-        const keys = Object.values(FRUIT_TYPES);
-
-        // 简单的动态算法：
-        // 牌库剩余卡牌虽然影响步数，但直接映射太复杂。
-        // 这里采用“市场波动”模拟：在基础倍率上下浮动。
-
-        keys.forEach(key => {
-            const base = FRUIT_DATA[key].baseRate;
-            let multiplier = 1;
-
-            // 随机波动：-20% 到 +50%
-            const fluctuation = Phaser.Math.FloatBetween(0.8, 1.5);
-
-            // 大奖波动更剧烈
-            if (base >= 20) {
-                // 太阳/月亮：有时会变成超高倍率 (例如 100倍)
-                if (Math.random() < 0.2) multiplier = 2.0;
-            }
-
-            let finalRate = Math.floor(base * fluctuation * multiplier);
-
-            // 保证最小倍率不低于基础的 80% 且至少为 2
-            finalRate = Math.max(2, finalRate);
-
-            this.currentOdds[key] = finalRate;
-        });
+        // 直接使用固定倍率，不再随机
+        this.currentOdds = { ...this.fixedOdds };
 
         // 重置玩家下注记录
         this.scene.players.forEach(p => {
-            this.playerBets[p.id] = this.initEmptyBets();
-            p.hasBetThisRound = false; // 标记本轮是否已进行过下注阶段
+            if (!this.playerBets[p.id]) {
+                this.playerBets[p.id] = this.initEmptyBets();
+            } else {
+                // 清空上一轮的下注
+                const bets = this.playerBets[p.id];
+                for (let k in bets) bets[k] = 0;
+            }
+            p.hasBetThisRound = false;
         });
 
-        console.log("本轮水果倍率:", this.currentOdds);
+        console.log("本轮倍率已重置:", this.currentOdds);
     }
 
     initEmptyBets() {
         const bets = {};
-        Object.values(FRUIT_TYPES).forEach(k => bets[k] = 0);
+        // 假设 FRUIT_TYPES 的值就是 'apple', 'sun' 等 key
+        for (let key in this.fixedOdds) {
+            bets[key] = 0;
+        }
         return bets;
     }
 
@@ -57,9 +53,12 @@ export default class BetManager {
     adjustBet(player, fruitType, delta) {
         if (player.state === 'bust' || player.state === 'frozen') return false;
 
+        // 确保初始化
+        if (!this.playerBets[player.id]) this.playerBets[player.id] = this.initEmptyBets();
+
         const currentBet = this.playerBets[player.id][fruitType];
 
-        // 增加注码
+        // 增加注码 (投入积分)
         if (delta > 0) {
             if (player.totalScore >= delta) {
                 player.totalScore -= delta;
@@ -70,10 +69,10 @@ export default class BetManager {
                 return false;
             }
         }
-        // 减少注码 (退回积分)
+        // 减少注码 (撤回积分)
         else {
             if (currentBet + delta >= 0) {
-                player.totalScore -= delta; // delta是负数，减负等于加
+                player.totalScore -= delta; // 负负得正，返还积分
                 this.playerBets[player.id][fruitType] += delta;
                 return true;
             }
@@ -82,7 +81,7 @@ export default class BetManager {
     }
 
     getOdds(fruitType) {
-        return this.currentOdds[fruitType] || 0;
+        return this.currentOdds[fruitType] || 2;
     }
 
     getPlayerBets(playerId) {
@@ -90,8 +89,6 @@ export default class BetManager {
     }
 
     // --- 结算：当棋子停在某个格子上时 ---
-    // gridFruitType: 棋盘格子对应的水果类型
-    // return: 赢得的总积分
     resolveLanding(player, gridFruitType) {
         const bets = this.playerBets[player.id];
         if (!bets) return 0;
@@ -101,9 +98,10 @@ export default class BetManager {
             const odds = this.currentOdds[gridFruitType];
             const winScore = betAmount * odds;
 
-            // 只有押中的才返还本金+奖励，还是只给奖励？通常是本金已消耗，只给 odds * amount
-            // 这里设定为：下注已消耗，赢得 odds * amount
+            this.scene.toast.show(`✨ 押中！获得 ${winScore} 分！`, 1500);
             player.totalScore += winScore;
+
+            // 可以在这里加个简单的特效调用，比如飘分
 
             return winScore;
         }
@@ -111,23 +109,19 @@ export default class BetManager {
     }
 
     // --- AI 下注逻辑 ---
-    // 电脑每轮简单的随机下注
     performAIBetting(aiPlayer) {
-        if (aiPlayer.totalScore < 10) return; // 没分不下注
+        if (aiPlayer.totalScore < 10) return;
 
-        // AI 策略：随机选 1-3 个水果下注
-        const keys = Object.values(FRUIT_TYPES);
-        const betCount = Phaser.Math.Between(1, 3);
+        // AI 简单策略：随机选 1-2 个倍率高的或者数量多的
+        // 这里简单实现：随机投
+        const keys = Object.keys(this.fixedOdds);
+        const betCount = Phaser.Math.Between(1, 2);
 
         for (let i = 0; i < betCount; i++) {
             if (aiPlayer.totalScore < 10) break;
-
             const randomFruit = Phaser.Utils.Array.GetRandom(keys);
-            // 简单的注码：10 到 总分的 20%
-            const maxBet = Math.floor(aiPlayer.totalScore * 0.2);
-            const amount = Math.max(10, Math.min(maxBet, 50));
-
-            // 调整为 10 的倍数
+            const maxBet = Math.floor(aiPlayer.totalScore * 0.3); // 最多投30%
+            const amount = Math.max(10, Math.min(maxBet, 30));
             const roundedAmount = Math.floor(amount / 10) * 10;
 
             if (roundedAmount > 0) {

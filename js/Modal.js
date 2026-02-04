@@ -1,386 +1,259 @@
 export default class Modal {
     constructor(scene) {
         this.scene = scene;
-        this.container = null;
         this.overlay = null;
+        this.container = null;
+
+        this.styles = {
+            windowBg: 0xfff8e1,
+            windowBorder: 0x8d6e63,
+            textTitle: '#5d4037',
+            textNormal: '#333333',
+            textLight: '#757575',
+            btnText: '#ffffff'
+        };
     }
 
-    createOverlay() {
-        if (this.overlay) return;
+    createOverlay(alpha = 0.6) {
+        if (this.overlay) this.overlay.destroy();
         this.overlay = this.scene.add.graphics();
-        this.overlay.fillStyle(0x000000, 0.6);
+        this.overlay.fillStyle(0x000000, alpha);
         this.overlay.fillRect(0, 0, 720, 1280);
-        this.overlay.setDepth(1000);
+        this.overlay.setDepth(2900);
         this.overlay.setInteractive(new Phaser.Geom.Rectangle(0, 0, 720, 1280), Phaser.Geom.Rectangle.Contains);
+
+        // 🟢 弹窗打开时，隐藏主界面 HTML 菜单按钮 (避免穿透或视觉干扰)
+        const htmlMenuBtn = document.getElementById('html-menu-btn');
+        if (htmlMenuBtn) {
+            htmlMenuBtn.classList.add('hidden');
+        }
+    }
+
+    createWindowBase(height) {
+        if (this.container) this.container.destroy();
+        this.container = this.scene.add.container(360, 640).setDepth(3000);
+
+        const width = 620;
+        const halfW = width / 2;
+        const halfH = height / 2;
+
+        const bg = this.scene.add.graphics();
+        bg.fillStyle(0x000000, 0.2);
+        bg.fillRoundedRect(-halfW + 8, -halfH + 8, width, height, 24);
+        bg.fillStyle(this.styles.windowBg, 1);
+        bg.fillRoundedRect(-halfW, -halfH, width, height, 20);
+        bg.lineStyle(4, this.styles.windowBorder, 1);
+        bg.strokeRoundedRect(-halfW, -halfH, width, height, 20);
+
+        this.container.add(bg);
+        return { topY: -halfH, bottomY: halfH, width: width };
+    }
+
+    createBtn(x, y, width, height, text, color, callback) {
+        const btnContainer = this.scene.add.container(x, y);
+        const bg = this.scene.add.graphics();
+        bg.fillStyle(color, 1);
+        bg.fillRoundedRect(-width / 2, -height / 2, width, height, 12);
+
+        const t = this.scene.add.text(0, 0, text, {
+            fontSize: '26px', color: this.styles.btnText, fontStyle: 'bold', fontFamily: 'Arial',
+            padding: { top: 8, bottom: 8, left: 5, right: 5 }
+        }).setOrigin(0.5);
+
+        const zone = this.scene.add.zone(0, 0, width, height).setInteractive();
+        zone.on('pointerdown', () => {
+            this.scene.tweens.add({
+                targets: btnContainer, scaleX: 0.95, scaleY: 0.95, duration: 50, yoyo: true,
+                onComplete: () => { this.destroy(); if (callback) callback(); }
+            });
+        });
+        btnContainer.add([bg, t, zone]);
+        this.container.add(btnContainer);
+        return btnContainer;
+    }
+
+    createTitle(y, text) {
+        const t = this.scene.add.text(0, y, text, {
+            fontSize: '36px', color: this.styles.textTitle, fontStyle: 'bold', padding: { top: 10, bottom: 10 }
+        }).setOrigin(0.5);
+        this.container.add(t);
+    }
+
+    // =========================================
+    // 道具商店
+    // =========================================
+    showShop(player, items, onBuyCallback) {
+        this.createOverlay();
+
+        const headerH = 160;
+        const footerH = 100;
+        const itemH = 100;
+        const totalHeight = headerH + (items.length * (itemH + 10)) + footerH;
+
+        const layout = this.createWindowBase(totalHeight);
+
+        this.createTitle(layout.topY + 50, "道具商店");
+
+        const scoreText = this.scene.add.text(0, layout.topY + 110, `持有积分: ${player.totalScore}`, {
+            fontSize: '28px', color: '#e65100', fontStyle: 'bold', padding: { top: 5, bottom: 5 }
+        }).setOrigin(0.5);
+        this.container.add(scoreText);
+
+        let currentY = layout.topY + headerH + (itemH / 2);
+
+        items.forEach((item) => {
+            const itemGroup = this.scene.add.container(0, currentY);
+            const itemBg = this.scene.add.graphics();
+            itemBg.fillStyle(0xffffff, 1);
+            itemBg.fillRoundedRect(-280, -itemH/2, 560, itemH, 15);
+            itemGroup.add(itemBg);
+
+            const emoji = this.scene.add.text(-230, 0, item.emoji, {
+                fontSize: '48px', color: '#333333', padding: { top: 5, bottom: 5 }
+            }).setOrigin(0.5);
+
+            const infoX = -180;
+            const name = this.scene.add.text(infoX, -15, item.name, {
+                fontSize: '24px', color: '#333', fontStyle: 'bold', padding: { top: 5, bottom: 5 }
+            }).setOrigin(0, 0.5);
+
+            const desc = this.scene.add.text(infoX, 18, item.desc, {
+                fontSize: '16px', color: '#757575', padding: { top: 5, bottom: 5 }
+            }).setOrigin(0, 0.5);
+
+            const isFull = player.items.length >= 5;
+            const canAfford = player.totalScore >= item.cost;
+            let btnColor = 0x66bb6a;
+            let btnText = `${item.cost} 积分`;
+
+            if (isFull) { btnColor = 0xbdbdbd; btnText = "已满"; }
+            else if (!canAfford) { btnColor = 0xbdbdbd; }
+
+            const btnBg = this.scene.add.graphics();
+            btnBg.fillStyle(btnColor, 1);
+            btnBg.fillRoundedRect(140, -30, 120, 60, 10);
+
+            const price = this.scene.add.text(200, 0, btnText, {
+                fontSize: '20px', color: '#fff', fontStyle: 'bold', padding: { top: 5, bottom: 5 }
+            }).setOrigin(0.5);
+
+            const zone = this.scene.add.zone(200, 0, 120, 60).setInteractive();
+            zone.on('pointerdown', () => {
+                if (canAfford && !isFull) {
+                    this.destroy();
+                    onBuyCallback({ action: 'buy', item: item });
+                }
+            });
+
+            itemGroup.add([itemBg, emoji, name, desc, btnBg, price, zone]);
+            this.container.add(itemGroup);
+            currentY += (itemH + 10);
+        });
+
+        const footerY = layout.bottomY - 50;
+        this.createBtn(0, footerY, 240, 60, "不购买 (+1分)", 0xef5350, () => {
+            onBuyCallback({ action: 'pass' });
+        });
+    }
+
+    // =========================================
+    // 回合结算
+    // =========================================
+    showRoundResult(round, players, onContinue) {
+        this.createOverlay();
+        const layout = this.createWindowBase(600);
+        this.createTitle(layout.topY + 60, `第 ${round} 轮结束`);
+        const sorted = [...players].sort((a,b) => b.roundScore - a.roundScore);
+        let startY = layout.topY + 140;
+        sorted.forEach((p, i) => {
+            const y = startY + i * 65;
+            const name = this.scene.add.text(-220, y, `${i+1}. ${p.name}`, {
+                fontSize: '24px', color: '#333', padding: { top: 5, bottom: 5 }
+            });
+            const score = this.scene.add.text(80, y, `+${p.roundScore}`, {
+                fontSize: '28px', color: '#2e7d32', fontStyle:'bold', padding: { top: 5, bottom: 5 }
+            });
+            const total = this.scene.add.text(180, y+4, `(总:${p.totalScore})`, {
+                fontSize: '18px', color: '#757575', padding: { top: 5, bottom: 5 }
+            });
+            this.container.add([name, score, total]);
+        });
+        this.createBtn(0, layout.bottomY - 70, 220, 60, "进入商店", 0x42a5f5, onContinue);
+    }
+
+    // =========================================
+    // 最终游戏结果
+    // =========================================
+    showGameResult(sortedPlayers, onRestart, onHome) {
+        this.createOverlay();
+        const listHeight = sortedPlayers.length * 60;
+        const baseHeight = 350;
+        const height = Math.min(baseHeight + listHeight, 1000);
+
+        const layout = this.createWindowBase(height);
+        this.createTitle(layout.topY + 60, "🏆 最终战报 🏆");
+
+        let startY = layout.topY + 130;
+        const gapY = 60;
+
+        sortedPlayers.forEach((p, index) => {
+            const rankStr = ["第一名", "第二名", "第三名", "第四名", "第五名", "第六名"][index] || `第${index+1}名`;
+            let color = '#5d4037';
+            let fontStyle = 'bold';
+            if (index === 0) color = '#ff7043';
+            else if (p.id === 0) color = '#4db6ac';
+
+            const rowText = this.scene.add.text(0, startY, `${rankStr}   ${p.name}   ${p.totalScore}分`, {
+                fontSize: '28px', color: color, fontStyle: fontStyle, padding: { top: 5, bottom: 5 }
+            }).setOrigin(0.5);
+
+            this.container.add(rowText);
+            startY += gapY;
+        });
+
+        const btnY = layout.bottomY - 80;
+        this.createBtn(-140, btnY, 200, 70, "返回主页", 0x90a4ae, onHome);
+        this.createBtn(140, btnY, 200, 70, "再来一局", 0x66bb6a, onRestart);
+    }
+
+    // =========================================
+    // 确认框
+    // =========================================
+    showConfirmation(text, onConfirm, onCancel) {
+        this.createOverlay(0.6);
+        const height = 420;
+        const layout = this.createWindowBase(height);
+        this.createTitle(layout.topY + 60, "提示");
+        const msg = this.scene.add.text(0, layout.topY + 140, text, {
+            fontSize: '26px', color: '#333', align: 'center', wordWrap: { width: 450 }, padding: { top: 10, bottom: 10 }
+        }).setOrigin(0.5);
+        this.container.add(msg);
+        const btnY = layout.bottomY - 70;
+        this.createBtn(-130, btnY, 200, 60, "取消", 0x90a4ae, onCancel || (() => {}));
+        this.createBtn(130, btnY, 200, 60, "确定", 0xff7043, onConfirm);
+    }
+
+    showTargetSelection(titleText, targets, onSelect) {
+        this.createOverlay();
+        const contentH = targets.length * 80 + 150;
+        const height = Math.max(400, contentH);
+        const layout = this.createWindowBase(height);
+        this.createTitle(layout.topY + 60, titleText);
+        let startY = layout.topY + 140;
+        targets.forEach((p, i) => {
+            const y = startY + i * 80;
+            this.createBtn(0, y, 280, 60, p.name, 0x7e57c2, () => { onSelect(p); });
+        });
     }
 
     destroy() {
-        if (this.container) {
-            this.container.destroy();
-            this.container = null;
+        if (this.overlay) this.overlay.destroy();
+        if (this.container) this.container.destroy();
+
+        // 🟢 弹窗关闭时，恢复主界面 HTML 菜单按钮
+        const htmlMenuBtn = document.getElementById('html-menu-btn');
+        if (htmlMenuBtn) {
+            htmlMenuBtn.classList.remove('hidden');
         }
-        if (this.overlay) {
-            this.overlay.clear();
-            this.overlay.destroy();
-            this.overlay = null;
-        }
-    }
-
-    // --- 通用窗口组件 ---
-    createWindow(height, title) {
-        this.createOverlay();
-        const y = (1280 - height) / 2;
-
-        this.container = this.scene.add.container(0, 0).setDepth(1001);
-
-        // 1. 窗口投影
-        const shadow = this.scene.add.graphics();
-        shadow.fillStyle(0x000000, 0.2);
-        shadow.fillRoundedRect(40 + 6, y + 6, 640, height, 24);
-        this.container.add(shadow);
-
-        // 2. 窗口背景
-        const bg = this.scene.add.graphics();
-        bg.fillStyle(0xfff8e1, 1);
-        bg.fillRoundedRect(40, y, 640, height, 20);
-        bg.lineStyle(4, 0x8d6e63, 1);
-        bg.strokeRoundedRect(40, y, 640, height, 20);
-        this.container.add(bg);
-
-        // 3. 标题背景条
-        const titleBg = this.scene.add.graphics();
-        titleBg.fillStyle(0xffcc80, 1);
-        titleBg.fillRoundedRect(160, y - 30, 400, 70, 35);
-        titleBg.lineStyle(3, 0xffffff, 1);
-        titleBg.strokeRoundedRect(160, y - 30, 400, 70, 35);
-        this.container.add(titleBg);
-
-        // 4. 标题文字
-        const titleText = this.scene.add.text(360, y + 5, title, {
-            fontSize: '32px',
-            color: '#5d4037',
-            fontStyle: 'bold',
-            padding: { top: 10, bottom: 10, left: 10, right: 10 }
-        }).setOrigin(0.5);
-        this.container.add(titleText);
-
-        return { startY: y + 80, contentWidth: 600, baseX: 40 }; // baseX 是窗口左边缘
-    }
-
-    // --- 按钮组件 ---
-    createButton(x, y, text, color, callback) {
-        const w = 180; const h = 65;
-        const container = this.scene.add.container(x, y);
-
-        const bg = this.scene.add.graphics();
-        bg.fillStyle(color, 1);
-        bg.fillRoundedRect(-w/2, -h/2, w, h, 16);
-        bg.lineStyle(2, 0xffffff, 0.4);
-        bg.strokeRoundedRect(-w/2 + 2, -h/2 + 2, w - 4, h - 4, 16);
-
-        const t = this.scene.add.text(0, 0, text, {
-            fontSize: '24px',
-            color: '#ffffff',
-            fontStyle: 'bold',
-            padding: { top: 5, bottom: 5 }
-        }).setOrigin(0.5);
-
-        const zone = this.scene.add.zone(0, 0, w, h).setInteractive();
-        zone.on('pointerdown', () => {
-            this.scene.tweens.add({ targets: container, scaleX: 0.95, scaleY: 0.95, duration: 50, yoyo: true });
-            callback();
-        });
-
-        container.add([bg, t, zone]);
-        this.container.add(container);
-
-        return { container, bg, text: t, zone };
-    }
-
-    // --- 1. 目标选择弹窗 (居中优化) ---
-    showTargetSelection(title, targets, onSelect) {
-        this.destroy();
-        const rowHeight = 100;
-        const height = 180 + Math.ceil(targets.length / 2) * rowHeight;
-        const layout = this.createWindow(height, title);
-
-        const centerX = 360;
-        const colGap = 240; // 列中心间距
-
-        targets.forEach((p, i) => {
-            const col = i % 2;
-            const row = Math.floor(i / 2);
-            let x;
-
-            // 如果只有1个或者最后一行只有1个，居中显示
-            const isLastRow = row === Math.floor((targets.length - 1) / 2);
-            const isSingleInRow = (targets.length % 2 === 1) && isLastRow;
-
-            if (isSingleInRow) {
-                x = centerX;
-            } else {
-                // 左列: 360 - 120 = 240, 右列: 360 + 120 = 480
-                x = centerX + (col === 0 ? -colGap/2 : colGap/2);
-            }
-
-            const y = layout.startY + 30 + row * rowHeight;
-
-            this.createButton(x, y, p.name, 0xffca28, () => {
-                this.destroy();
-                onSelect(p);
-            });
-        });
-    }
-
-    // --- 2. 每轮结算弹窗 (居中优化) ---
-    showRoundResult(round, players, onConfirm) {
-        this.destroy();
-        const height = 700;
-        const layout = this.createWindow(height, `第 ${round} 轮结束`);
-        const startY = layout.startY + 10;
-        const centerX = 360;
-
-        // 表头背景条 (稍微缩进一点，更美观)
-        const headerBg = this.scene.add.graphics();
-        headerBg.fillStyle(0xffe0b2, 0.4);
-        headerBg.fillRoundedRect(layout.baseX + 20, startY - 25, 600, 50, 8);
-        this.container.add(headerBg);
-
-        // 居中列坐标配置
-        const colX = {
-            name: 160,  // 360 - 200
-            round: 360, // Center
-            total: 560  // 360 + 200
-        };
-
-        const headers = [
-            { text: "玩家", x: colX.name, align: 0.5 },
-            { text: "本轮", x: colX.round, align: 0.5 },
-            { text: "总分", x: colX.total, align: 0.5 }
-        ];
-        headers.forEach(h => {
-            const t = this.scene.add.text(h.x, startY, h.text, {
-                fontSize: '26px', color: '#8d6e63', fontStyle: 'bold', padding: { top: 5, bottom: 5 }
-            }).setOrigin(h.align, 0.5);
-            this.container.add(t);
-        });
-
-        const rowStartY = startY + 60;
-        const rowHeight = 70;
-
-        players.forEach((p, i) => {
-            const rowY = rowStartY + i * rowHeight;
-            const isSelf = (p.id === 0);
-
-            if (i % 2 === 0) {
-                const rowBg = this.scene.add.graphics();
-                rowBg.fillStyle(0xffffff, 0.3);
-                rowBg.fillRoundedRect(layout.baseX + 20, rowY - 30, 600, 60, 8);
-                this.container.add(rowBg);
-            }
-
-            const nameColor = isSelf ? '#e65100' : '#5d4037';
-            // 名字
-            this.container.add(this.scene.add.text(colX.name, rowY, p.name, {
-                fontSize: '24px', color: nameColor, fontStyle: isSelf?'bold':'normal', padding: { top: 5, bottom: 5 }
-            }).setOrigin(0.5));
-
-            // 本轮分
-            const rScoreStr = p.roundScore > 0 ? `+${p.roundScore}` : `${p.roundScore}`;
-            const rScoreColor = p.roundScore > 0 ? '#388e3c' : '#5d4037';
-            this.container.add(this.scene.add.text(colX.round, rowY, rScoreStr, {
-                fontSize: '26px', color: rScoreColor, fontStyle: 'bold', padding: { top: 5, bottom: 5 }
-            }).setOrigin(0.5));
-
-            // 总分
-            this.container.add(this.scene.add.text(colX.total, rowY, `${p.totalScore}`, {
-                fontSize: '26px', color: '#f57f17', fontStyle: 'bold', padding: { top: 5, bottom: 5 }
-            }).setOrigin(0.5));
-        });
-
-        const btnY = rowStartY + players.length * rowHeight + 40;
-        this.createButton(centerX, btnY, "进入商店", 0x66bb6a, () => {
-            this.destroy();
-            onConfirm();
-        });
-    }
-
-    // --- 3. 商店弹窗 (居中优化) ---
-    showShop(player, shopInventory, onComplete) {
-        this.destroy();
-        const h = 880;
-        const layout = this.createWindow(h, "道具商店");
-        const centerX = 360;
-
-        // 玩家信息
-        const infoBg = this.scene.add.graphics();
-        infoBg.fillStyle(0xffe0b2, 0.5);
-        infoBg.fillRoundedRect(layout.baseX + 20, layout.startY, 600, 50, 10);
-        this.container.add(infoBg);
-
-        const infoText = this.scene.add.text(centerX, layout.startY + 25,
-            `${player.name}  |  持有积分: ${player.totalScore}`, {
-                fontSize: '22px', color: '#e65100', fontStyle: 'bold', padding: { top: 8, bottom: 8 }
-            }).setOrigin(0.5);
-        this.container.add(infoText);
-
-        // 商品网格
-        // ItemW=160, GapX=40. Total 3 cols width = 160*3 + 40*2 = 480+80 = 560.
-        // Center offsets:
-        // Col 0: 360 - 200 = 160
-        // Col 1: 360
-        // Col 2: 360 + 200 = 560
-        const gridStartY = layout.startY + 70;
-        const itemW = 160;
-        const itemH = 170;
-        const gapY = 25;
-
-        let descTitle, descText, btnBuy;
-        let selectedItem = null;
-        let selectionGraphics = [];
-
-        shopInventory.forEach((item, index) => {
-            const col = index % 3;
-            const row = Math.floor(index / 3);
-
-            // 计算居中 X
-            let x;
-            if (col === 0) x = 160 - itemW/2;
-            else if (col === 1) x = 360 - itemW/2;
-            else x = 560 - itemW/2;
-
-            const y = gridStartY + row * (itemH + gapY);
-
-            const itemGroup = this.scene.add.container(x, y);
-
-            const bg = this.scene.add.graphics();
-            const canAfford = player.totalScore >= item.cost;
-            const bgColor = canAfford ? 0xffffff : 0xeeeeee;
-
-            bg.fillStyle(0x000000, 0.1); bg.fillRoundedRect(4, 4, itemW, itemH, 12);
-            bg.fillStyle(bgColor, 1); bg.fillRoundedRect(0, 0, itemW, itemH, 12);
-            bg.lineStyle(1, 0xbdbdbd, 1); bg.strokeRoundedRect(0, 0, itemW, itemH, 12);
-
-            const selectBorder = this.scene.add.graphics();
-            selectBorder.lineStyle(5, 0x29b6f6, 1);
-            selectBorder.strokeRoundedRect(-2, -2, itemW + 4, itemH + 4, 14);
-            selectBorder.setVisible(false);
-            selectionGraphics.push(selectBorder);
-
-            const name = this.scene.add.text(itemW/2, 35, item.name, {
-                fontSize: '22px', color: canAfford ? '#5d4037' : '#9e9e9e', fontStyle: 'bold', padding: { top: 5, bottom: 5 }
-            }).setOrigin(0.5);
-
-            const iconBg = this.scene.add.circle(itemW/2, 90, 30, canAfford ? 0xffcc80 : 0xe0e0e0);
-            const iconText = this.scene.add.text(itemW/2, 90, item.name[0], {
-                fontSize: '32px', color: '#ffffff', fontStyle: 'bold', padding: { top: 5, bottom: 5 }
-            }).setOrigin(0.5);
-
-            const costColor = canAfford ? '#f57f17' : '#9e9e9e';
-            const cost = this.scene.add.text(itemW/2, 145, `${item.cost}分`, {
-                fontSize: '26px', color: costColor, fontStyle: 'bold', padding: { top: 5, bottom: 5 }
-            }).setOrigin(0.5);
-
-            itemGroup.add([bg, iconBg, iconText, selectBorder, name, cost]);
-            this.container.add(itemGroup);
-
-            const zone = this.scene.add.zone(0, 0, itemW, itemH).setInteractive().setOrigin(0);
-            itemGroup.add(zone);
-
-            zone.on('pointerdown', () => {
-                selectionGraphics.forEach(g => g.setVisible(false));
-                selectBorder.setVisible(true);
-                selectedItem = item;
-                descTitle.setText(item.name);
-                descText.setText(item.desc);
-                updateBuyButton();
-            });
-        });
-
-        // 描述区域
-        const descY = gridStartY + 2 * (itemH + gapY) + 30;
-        const descH = 140;
-
-        const descBg = this.scene.add.graphics();
-        descBg.fillStyle(0xffecb3, 0.6);
-        descBg.fillRoundedRect(layout.baseX + 20, descY, 600, descH, 16);
-        this.container.add(descBg);
-
-        descTitle = this.scene.add.text(centerX, descY + 25, "请选择一个道具", {
-            fontSize: '24px', color: '#8d6e63', fontStyle: 'bold', padding: { top: 5, bottom: 5 }
-        }).setOrigin(0.5);
-        this.container.add(descTitle);
-
-        descText = this.scene.add.text(centerX, descY + 60, "点击上方卡片查看详细效果", {
-            fontSize: '20px', color: '#5d4037', align: 'center', wordWrap: { width: 520 }, lineSpacing: 6, padding: { top: 5, bottom: 5 }
-        }).setOrigin(0.5, 0);
-        this.container.add(descText);
-
-        const btnY = descY + descH + 45;
-
-        btnBuy = this.createButton(240, btnY, "购买", 0xcccccc, () => {
-            if (selectedItem && player.totalScore >= selectedItem.cost) {
-                this.destroy();
-                onComplete({ action: 'buy', item: selectedItem });
-            }
-        });
-
-        this.createButton(480, btnY, "放弃 (+1分)", 0x81c784, () => {
-            this.destroy();
-            onComplete({ action: 'pass' });
-        });
-
-        const updateBuyButton = () => {
-            if (!selectedItem) {
-                this.updateButtonStyle(btnBuy, 0xcccccc, "购买");
-                return;
-            }
-            if (player.totalScore < selectedItem.cost) {
-                this.updateButtonStyle(btnBuy, 0xef5350, "积分不足");
-            } else {
-                this.updateButtonStyle(btnBuy, 0xffca28, `购买 (-${selectedItem.cost})`);
-            }
-        };
-    }
-
-    updateButtonStyle(btnObj, color, textStr) {
-        btnObj.bg.clear();
-        btnObj.bg.fillStyle(color, 1);
-        btnObj.bg.fillRoundedRect(-90, -32.5, 180, 65, 16);
-        btnObj.bg.lineStyle(2, 0xffffff, 0.4);
-        btnObj.bg.strokeRoundedRect(-88, -30.5, 176, 61, 16);
-        btnObj.text.setText(textStr);
-    }
-
-    // --- 4. 游戏结束弹窗 (居中优化) ---
-    showGameResult(players, onRestart) {
-        this.destroy();
-        players.sort((a, b) => b.totalScore - a.totalScore);
-        const layout = this.createWindow(600, "🏆 游戏结束 🏆");
-        const winner = players[0];
-        const centerX = 360;
-
-        this.container.add(this.scene.add.text(centerX, layout.startY + 20, `冠军: ${winner.name}`, {
-            fontSize: '36px', color: '#d84315', fontStyle:'bold', padding: { top: 10, bottom: 10 }
-        }).setOrigin(0.5));
-
-        players.forEach((p, i) => {
-            const rowY = layout.startY + 100 + i * 60;
-            // 居中排列: 排名(240) - 名字(360) - 分数(480)
-            this.container.add(this.scene.add.text(240, rowY, `第${i+1}名`, {
-                fontSize: '24px', color: '#8d6e63', padding: { top: 5, bottom: 5 }
-            }).setOrigin(0.5));
-            this.container.add(this.scene.add.text(360, rowY, p.name, {
-                fontSize: '24px', color: '#5d4037', padding: { top: 5, bottom: 5 }
-            }).setOrigin(0.5));
-            this.container.add(this.scene.add.text(480, rowY, p.totalScore, {
-                fontSize: '24px', color: '#f57f17', fontStyle:'bold', padding: { top: 5, bottom: 5 }
-            }).setOrigin(0.5));
-        });
-
-        this.createButton(centerX, layout.startY + 400, "再来一局", 0x42a5f5, () => {
-            this.destroy();
-            onRestart();
-        });
     }
 }
