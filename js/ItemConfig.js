@@ -1,63 +1,77 @@
+// --- 道具类型保持不变 ---
 export const ITEM_TYPES = {
-    LAND: 'land_deed',     // 购地卡
-    UPGRADE: 'upgrade',    // 升级卡
-    BLOCK: 'block',        // 拦截卡
-    CLEAR: 'clear',        // 破障卡
-    LEACH: 'leach',        // 借势卡
-    YIELD: 'yield',        // 礼让卡
-    MODESTY: 'modesty',    // 谦虚卡
-    TAXFREE: 'tax_free',   // 免税卡
-    ORBIT: 'orbit'         // 环游卡
+    LAND_DEED: 'land_deed',
+    UPGRADE: 'upgrade',
+    BLOCK: 'block',
+    CLEAR: 'clear',
+    LEACH: 'leach',
+    TAX_FREE: 'tax_free',
+    ORBIT: 'orbit'
 };
 
-// 升级卡的价格表：第1-2张5元，3-4张6元... 上限10元
-// 索引0对应第1张
 export const UPGRADE_PRICES = [5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10];
 
+// --- 新增：水果机配置 ---
+
+// 8种图标定义 (按倍率从低到高排序建议)
+export const FRUIT_TYPES = {
+    APPLE: 'apple',       // 🍎
+    ORANGE: 'orange',     // 🍊
+    PAPAYA: 'papaya',     // 🥭 (木瓜)
+    WATERMELON: 'watermelon', // 🍉
+    BELL: 'bell',         // 🔔
+    STAR: 'star',         // ⭐ (双星)
+    MOON: 'moon',         // 🌙 (原77)
+    SUN: 'sun'            // ☀️ (原BAR)
+};
+
+export const FRUIT_DATA = {
+    [FRUIT_TYPES.APPLE]:      { name: "苹果", emoji: "🍎", baseRate: 2,  color: 0xff5252 },
+    [FRUIT_TYPES.ORANGE]:     { name: "橙子", emoji: "🍊", baseRate: 3,  color: 0xffa726 },
+    [FRUIT_TYPES.PAPAYA]:     { name: "木瓜", emoji: "🥭", baseRate: 4,  color: 0xffd180 },
+    [FRUIT_TYPES.WATERMELON]: { name: "西瓜", emoji: "🍉", baseRate: 5,  color: 0x66bb6a },
+    [FRUIT_TYPES.BELL]:       { name: "铃铛", emoji: "🔔", baseRate: 10, color: 0xffeb3b },
+    [FRUIT_TYPES.STAR]:       { name: "双星", emoji: "⭐", baseRate: 15, color: 0x29b6f6 },
+    [FRUIT_TYPES.MOON]:       { name: "月亮", emoji: "🌙", baseRate: 25, color: 0xab47bc },
+    [FRUIT_TYPES.SUN]:        { name: "太阳", emoji: "☀️", baseRate: 50, color: 0xe53935 }
+};
+
+// 棋盘布局：1-24号格子的水果分布 (移除0号起点)
+// 设计思路：小奖多，大奖少
+export const BOARD_LAYOUT = [
+    FRUIT_TYPES.ORANGE,     // 1
+    FRUIT_TYPES.APPLE,      // 2
+    FRUIT_TYPES.BELL,       // 3
+    FRUIT_TYPES.APPLE,      // 4
+    FRUIT_TYPES.PAPAYA,     // 5
+    FRUIT_TYPES.APPLE,      // 6
+    FRUIT_TYPES.SUN,        // 7 (大奖)
+    FRUIT_TYPES.APPLE,      // 8
+    FRUIT_TYPES.WATERMELON, // 9
+    FRUIT_TYPES.APPLE,      // 10
+    FRUIT_TYPES.ORANGE,     // 11
+    FRUIT_TYPES.STAR,       // 12
+    FRUIT_TYPES.APPLE,      // 13
+    FRUIT_TYPES.PAPAYA,     // 14
+    FRUIT_TYPES.APPLE,      // 15
+    FRUIT_TYPES.MOON,       // 16 (大奖)
+    FRUIT_TYPES.APPLE,      // 17
+    FRUIT_TYPES.WATERMELON, // 18
+    FRUIT_TYPES.ORANGE,     // 19
+    FRUIT_TYPES.APPLE,      // 20
+    FRUIT_TYPES.BELL,       // 21
+    FRUIT_TYPES.APPLE,      // 22
+    FRUIT_TYPES.PAPAYA,     // 23
+    FRUIT_TYPES.ORANGE      // 24
+];
+
+// 道具数据 (移除旧的文字描述，UI层会处理浮窗)
 export const ITEM_DATA = {
-    [ITEM_TYPES.LAND]: {
-        name: "购地卡",
-        baseCost: 5,
-        desc: "花费5积分。获取当前无主格子的所属权(特殊格除外)。\n他人踩到时你得1分(安全分)，他人不移动。"
-    },
-    [ITEM_TYPES.UPGRADE]: {
-        name: "升级卡",
-        baseCost: 5, // 注意：实际价格需根据玩家购买数量计算
-        desc: "花费动态积分。升级前后2格内属于你的格子。\n升级后，他人踩到时你的得分+1。"
-    },
-    [ITEM_TYPES.BLOCK]: {
-        name: "拦截卡",
-        baseCost: 2,
-        desc: "花费2积分。在当前或下一格放置拦截。\n拦下第一个经过此格的玩家停止移动。"
-    },
-    [ITEM_TYPES.CLEAR]: {
-        name: "破障卡",
-        baseCost: 1,
-        desc: "花费1积分。清除前方5格内的所有拦截卡效果。"
-    },
-    [ITEM_TYPES.LEACH]: {
-        name: "借势卡",
-        baseCost: 6,
-        desc: "花费6积分。本轮指定一玩家，当其超过你时，\n你跟随移动并获得差额积分(安全分)。"
-    },
-    [ITEM_TYPES.YIELD]: {
-        name: "礼让卡",
-        baseCost: 2,
-        desc: "花费2积分。本轮若有玩家停在你位置，\n该玩家前移1格，你获得4积分。"
-    },
-    [ITEM_TYPES.MODESTY]: {
-        name: "谦虚卡",
-        baseCost: 1,
-        desc: "花费1积分。立即+3分，本轮最后行动。\n若多人使用，积分低者后手。"
-    },
-    [ITEM_TYPES.TAXFREE]: {
-        name: "免税卡",
-        baseCost: 1,
-        desc: "花费1积分。本轮踩到他人领地时，\n无需让对方获得积分。"
-    },
-    [ITEM_TYPES.ORBIT]: {
-        name: "环游卡",
-        baseCost: 3,
-        desc: "花费3积分。本轮结算时，\n若移动总步数>=24格，额外获得6分。"
-    }
+    land_deed: { name: "购地卡", baseCost: 5, desc: "购买脚下地块(非特殊格)。" },
+    upgrade:   { name: "升级卡", baseCost: 5, desc: "随机升级一块己方地块。" },
+    block:     { name: "拦截卡", baseCost: 3, desc: "原地放置路障，强制经停。" },
+    clear:     { name: "破障卡", baseCost: 2, desc: "清除前方5格内的路障。" },
+    leach:     { name: "借势卡", baseCost: 4, desc: "本轮对手得分时，你分得50%。" },
+    tax_free:  { name: "免税卡", baseCost: 3, desc: "本轮免除过路费。" },
+    orbit:     { name: "环游卡", baseCost: 4, desc: "本轮每走1步+1分。" }
 };

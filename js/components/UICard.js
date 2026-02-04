@@ -4,9 +4,7 @@ export default class UICard {
         this.colors = colors;
     }
 
-    /**
-     * 绘制小号卡牌 (顶部玩家信息用)
-     */
+    // ... (drawSmall, drawMedium, drawLarge 保持不变) ...
     drawSmall(x, y, value, isGray, group) {
         const w = 30; const h = 34;
         const bg = this.scene.add.graphics();
@@ -35,9 +33,6 @@ export default class UICard {
         if (group) { group.add(bg); group.add(t); } else { return [bg, t]; }
     }
 
-    /**
-     * 绘制中号卡牌 (手牌、竞速用)
-     */
     drawMedium(x, y, value, isGray, group) {
         const w = 44; const h = 50;
         const bg = this.scene.add.graphics();
@@ -68,9 +63,6 @@ export default class UICard {
         if (group) { group.addMultiple(elements); } else { return elements; }
     }
 
-    /**
-     * 绘制大号卡牌 (中间展示区专用)
-     */
     drawLarge(x, y, value, group) {
         const w = 90; const h = 110;
         const bg = this.scene.add.graphics();
@@ -107,28 +99,37 @@ export default class UICard {
     }
 
     /**
-     * 绘制道具卡 (新增)
+     * 绘制道具卡 (修改：加大尺寸，竖排文字)
      */
     drawItem(x, y, itemName, group, isSelected = false) {
-        const w = 44; const h = 50;
+        // 修改：尺寸变大 (60x100)
+        const w = 60; const h = 100;
         const bg = this.scene.add.graphics();
 
         // 选中时亮橙色，未选中深紫色
+        // 增加选中时的边框厚度
         const color = isSelected ? 0xff7043 : 0x7e57c2;
+        const strokeColor = isSelected ? 0xffeb3b : 0x000000;
+        const strokeAlpha = isSelected ? 1 : 0.2;
+        const strokeWidth = isSelected ? 4 : 2;
 
         bg.fillStyle(color, 1);
-        bg.fillRoundedRect(x, y, w, h, 8);
-        bg.lineStyle(2, 0x000000, 0.2);
-        bg.strokeRoundedRect(x, y, w, h, 8);
+        bg.fillRoundedRect(x, y, w, h, 10);
+        bg.lineStyle(strokeWidth, strokeColor, strokeAlpha);
+        bg.strokeRoundedRect(x, y, w, h, 10);
 
-        // 取首字作为图标 (例如: "购", "升")
-        const shortName = itemName ? itemName.substring(0, 1) : "?";
+        // 修改：竖排文字
+        // "购地卡" -> "购\n地\n卡"
+        const verticalText = itemName ? itemName.split('').join('\n') : "?";
 
-        const t = this.scene.add.text(x + w/2, y + h/2, shortName, {
-            fontSize: '20px', color: '#ffffff', fontStyle: 'bold'
+        const t = this.scene.add.text(x + w/2, y + h/2, verticalText, {
+            fontSize: '18px',
+            color: '#ffffff',
+            fontStyle: 'bold',
+            align: 'center',
+            lineSpacing: 5 // 增加字间距
         }).setOrigin(0.5);
 
-        // 道具需要返回 bg 对象以便绑定点击事件
         const elems = [bg, t];
         if (group) { group.addMultiple(elems); }
         return elems;

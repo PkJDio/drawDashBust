@@ -7,7 +7,6 @@ export default class ItemManager {
     }
 
     initGrid() {
-        // 25个格子 (0-24)
         this.gridData = Array(25).fill(null).map((_, i) => ({
             id: i,
             owner: null,
@@ -16,7 +15,6 @@ export default class ItemManager {
         }));
     }
 
-    // 检查是否有障碍物，返回是否被拦截
     checkBlock(gridId) {
         if (this.gridData[gridId].hasBlock) {
             this.gridData[gridId].hasBlock = false;
@@ -27,7 +25,6 @@ export default class ItemManager {
         return false;
     }
 
-    // 处理踩地逻辑
     handleLandEffect(player) {
         const grid = this.gridData[player.position];
         if (grid.owner !== null && grid.owner !== player.id) {
@@ -45,25 +42,28 @@ export default class ItemManager {
         }
     }
 
-    // 具体的道具使用效果
+    // --- 修改：增加返回值 (true=成功消耗, false=失败不消耗) ---
     handleItemEffect(player, itemType) {
         const gridId = player.position;
         const grid = this.gridData[gridId];
 
         switch (itemType) {
-            case 'land_deed':
+            case 'land_deed': // 购地卡
                 if (this.scene.specialGrids.includes(gridId) || gridId === 0) {
                     this.scene.toast.show("特殊格子无法购买！", 1500);
+                    return false; // 失败
                 } else if (grid.owner !== null) {
                     this.scene.toast.show("该地块已有主人！", 1500);
+                    return false; // 失败
                 } else {
                     grid.owner = player.id;
                     this.scene.ui.grid.updateGridStatus(gridId, player.id, grid.level, grid.hasBlock);
                     this.scene.toast.show("购地成功！", 1500);
+                    return true; // 成功
                 }
                 break;
 
-            case 'upgrade':
+            case 'upgrade': // 升级卡
             {
                 const targets = [];
                 for (let i = -2; i <= 2; i++) {
@@ -74,16 +74,19 @@ export default class ItemManager {
                 }
                 if (targets.length === 0) {
                     this.scene.toast.show("附近没有你的地块！", 1500);
+                    return false; // 失败，不消耗
                 } else {
+                    // 优先升级等级最低的
                     targets.sort((a, b) => a.level - b.level);
                     targets[0].level++;
                     this.scene.ui.grid.updateGridStatus(targets[0].id, player.id, targets[0].level, targets[0].hasBlock);
-                    this.scene.toast.show("最近的地块升级成功！", 1500);
+                    this.scene.toast.show("地块升级成功！", 1500);
+                    return true;
                 }
             }
                 break;
 
-            case 'block':
+            case 'block': // 拦截卡
                 if (!grid.hasBlock) {
                     grid.hasBlock = true;
                     this.scene.ui.grid.updateGridStatus(gridId, grid.owner, grid.level, true);
@@ -94,9 +97,9 @@ export default class ItemManager {
                     this.scene.ui.grid.updateGridStatus(nextId, this.gridData[nextId].owner, this.gridData[nextId].level, true);
                     this.scene.toast.show("拦截卡放置在前方！", 1500);
                 }
-                break;
+                return true;
 
-            case 'clear':
+            case 'clear': // 破障卡
                 let clearedCount = 0;
                 for (let i = 1; i <= 5; i++) {
                     let idx = gridId + i;
@@ -107,8 +110,13 @@ export default class ItemManager {
                         clearedCount++;
                     }
                 }
+                if (clearedCount === 0) {
+                    this.scene.toast.show("附近没有障碍物", 1000);
+                    // 也可以算消耗，或者不算，看设计。这里假设不算消耗比较友好
+                    return false;
+                }
                 this.scene.toast.show(`清除了 ${clearedCount} 个障碍！`, 1500);
-                break;
+                return true;
 
             case 'leach':
                 player.leachActive = true;
@@ -121,34 +129,34 @@ export default class ItemManager {
                     player.leachTarget = target.id;
                     this.scene.toast.show(`借势卡生效！目标: ${target.name}`, 1500);
                 }
-                break;
+                return true;
 
-            case 'yield':
-                player.yieldActive = true;
-                this.scene.toast.show("礼让卡已激活！", 1500);
-                break;
-
-            case 'modesty':
-                player.roundScore += 3;
-                player.modestyActive = true;
-                this.scene.toast.show("谦虚卡：+3分", 1500);
-                break;
+            // case 'yield':
+            //     player.yieldActive = true;
+            //     this.scene.toast.show("礼让卡已激活！", 1500);
+            //     return true;
+            //
+            // case 'modesty':
+            //     player.roundScore += 3;
+            //     player.modestyActive = true;
+            //     this.scene.toast.show("谦虚卡：+3分", 1500);
+            //     return true;
 
             case 'tax_free':
                 player.taxFreeActive = true;
                 this.scene.toast.show("本轮免税已激活！", 1500);
-                break;
+                return true;
 
             case 'orbit':
                 player.orbitActive = true;
                 player.orbitSteps = 0;
                 this.scene.toast.show("环游卡已激活！", 1500);
-                break;
+                return true;
         }
 
+        // 默认刷新UI
         this.scene.ui.refreshTopPanel(this.scene.players);
-        this.scene.time.delayedCall(1500, () => {
-            this.scene.readyForAction(player);
-        });
+        // 只有非立即结束回合的道具才需要 readyForAction，这里由 GameScene 控制
+        return true;
     }
 }

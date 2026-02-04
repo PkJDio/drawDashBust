@@ -18,11 +18,26 @@ export default class ShopManager {
             this.shopInventory.push(item);
         }
 
+        // --- 新增：控制台调试打印，验证排序逻辑 ---
+        console.log("=== 商店购买顺序计算 ===");
+        this.scene.players.forEach(p => {
+            const isBustOrFrozen = (p.state === 'bust' || p.state === 'frozen');
+            const sortScore = isBustOrFrozen ? 0 : p.roundScore;
+            console.log(`玩家: ${p.name}, 状态: ${p.state}, 原始本轮分: ${p.roundScore}, 排序计分: ${sortScore}, 总分: ${p.totalScore}`);
+        });
+
+        // 排序规则：本轮有效分数（爆牌算0）从小到大 -> 总分从小到大
         this.shopQueue = [...this.scene.players].sort((a, b) => {
-            if (a.roundScore !== b.roundScore) return a.roundScore - b.roundScore;
+            const scoreA = (a.state === 'bust' || a.state === 'frozen') ? 0 : a.roundScore;
+            const scoreB = (b.state === 'bust' || b.state === 'frozen') ? 0 : b.roundScore;
+
+            if (scoreA !== scoreB) return scoreA - scoreB;
             if (a.totalScore !== b.totalScore) return a.totalScore - b.totalScore;
             return Math.random() - 0.5;
         });
+
+        console.log("最终排序:", this.shopQueue.map(p => p.name));
+        console.log("========================");
 
         this.scene.toast.show("🛍️ 商店开启！", 1500);
         this.scene.time.delayedCall(1600, () => {
@@ -39,13 +54,17 @@ export default class ShopManager {
         const shopper = this.shopQueue.shift();
         const currentInventoryView = this.updateShopInventoryPrices(shopper);
 
-        if (shopper.isAI) {
-            this.aiShopAction(shopper, currentInventoryView);
-        } else {
-            this.scene.modal.showShop(shopper, currentInventoryView, (result) => {
-                this.resolveShopAction(shopper, result);
-            });
-        }
+        const delay = shopper.isAI ? 1000 : 500;
+
+        this.scene.time.delayedCall(delay, () => {
+            if (shopper.isAI) {
+                this.aiShopAction(shopper, currentInventoryView);
+            } else {
+                this.scene.modal.showShop(shopper, currentInventoryView, (result) => {
+                    this.resolveShopAction(shopper, result);
+                });
+            }
+        });
     }
 
     updateShopInventoryPrices(player) {
@@ -71,10 +90,8 @@ export default class ShopManager {
             else if (rand < 0.8) choice = Phaser.Utils.Array.GetRandom(affordable);
         }
 
-        this.scene.time.delayedCall(1000, () => {
-            if (choice) this.resolveShopAction(player, { action: 'buy', item: choice });
-            else this.resolveShopAction(player, { action: 'pass' });
-        });
+        if (choice) this.resolveShopAction(player, { action: 'buy', item: choice });
+        else this.resolveShopAction(player, { action: 'pass' });
     }
 
     resolveShopAction(player, result) {
@@ -96,6 +113,6 @@ export default class ShopManager {
         }
 
         this.scene.ui.refreshTopPanel(this.scene.players);
-        this.scene.time.delayedCall(1600, () => this.processShopTurn());
+        this.scene.time.delayedCall(1500, () => this.processShopTurn());
     }
 }

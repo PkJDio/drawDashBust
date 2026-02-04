@@ -174,3 +174,10 @@ body {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-10px); }
 }
+
+
+/* 建议添加到你的 CSS 文件中 */
+body {
+    /* 优先使用系统自带的彩色 Emoji 字体 */
+    font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Android Emoji", sans-serif;
+}

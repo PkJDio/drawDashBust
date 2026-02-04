@@ -17,7 +17,6 @@ export default class GameScene extends Phaser.Scene {
         this.toast = new Toast(this);
         this.modal = new Modal(this);
 
-        // 初始化管理器
         this.cardManager = new CardManager(this);
         this.shopManager = new ShopManager(this);
         this.itemManager = new ItemManager(this);
@@ -31,16 +30,12 @@ export default class GameScene extends Phaser.Scene {
                 if (this.isDuelMode) this.cardManager.onDuelGiveUp();
                 else this.onGiveUp();
             },
-            () => {
-                this.onUseItem();
-            },
-            () => {
-                this.onSkipItemPhase(); // 绑定跳过/放弃回调
-            }
+            () => { this.onUseItem(); },
+            () => { this.onSkipItemPhase(); }
         );
 
         this.ui.hand.setOnItemClick((itemType, index, x, y) => {
-            this.onItemClick(itemType, index);
+            this.onItemClick(itemType, index, x, y);
         });
 
         const aiCount = this.registry.get('aiCount') || 3;
@@ -55,7 +50,7 @@ export default class GameScene extends Phaser.Scene {
     initGame(aiCount) {
         this.players = this.createPlayers(aiCount);
         this.cardManager.initializeDecks();
-        this.itemManager.initGrid(); // 初始化地图数据
+        this.itemManager.initGrid();
 
         this.roundStartIndex = Phaser.Math.Between(0, this.players.length - 1);
         this.currentPlayerIndex = this.roundStartIndex;
@@ -83,26 +78,25 @@ export default class GameScene extends Phaser.Scene {
     }
 
     createPlayers(aiCount) {
-        // 新增 hasSkippedItemPhase 标记
         const p = [{
             id:0, name:"我 (P1)", isAI:false,
             totalScore:0, roundScore:0, position:0,
             cards:[], items:[], upgradeCount:0,
-            state:'playing',
-            hasSkippedItemPhase: false
+            state:'playing', hasSkippedItemPhase: false
         }];
         for(let i=0; i<aiCount; i++) p.push({
             id:i+1, name:`电脑${String.fromCharCode(65+i)}`, isAI:true,
             totalScore:0, roundScore:0, position:0,
             cards:[], items:[], upgradeCount:0,
-            state:'waiting',
-            hasSkippedItemPhase: false
+            state:'waiting', hasSkippedItemPhase: false
         });
         return p;
     }
 
     startTurn() {
         this.forceClearOverlays();
+        this.isWaitingForModal = false;
+
         if (this.isRoundSettling) return;
         if (this.checkRoundOver()) { this.handleRoundOver(); return; }
 
@@ -114,12 +108,11 @@ export default class GameScene extends Phaser.Scene {
 
         if (player.state === 'waiting') player.state = 'playing';
         this.ui.updateCurrentPlayerName(player.name);
+        this.ui.updateMidScore(player.roundScore);
         this.ui.refreshTopPanel(this.players);
 
         if (this.players.every(p => p.position !== 0)) this.ui.hideStartGrid();
 
-        // --- 修改：判断是否进入道具阶段 ---
-        // 条件：第2轮及以后 + 有道具 + 本轮尚未跳过/使用过
         const canUseItem = (this.roundCount > 1) && (player.items.length > 0) && (!player.hasSkippedItemPhase);
 
         if (canUseItem) {
@@ -131,6 +124,7 @@ export default class GameScene extends Phaser.Scene {
 
     readyForAction(player) {
         if (this.isWaitingForModal) return;
+
         if (!player.isAI) {
             this.ui.showActionButtons(true);
         } else {
@@ -151,8 +145,6 @@ export default class GameScene extends Phaser.Scene {
             tempPos++;
             if (tempPos > 24) tempPos = 1;
             path.push(tempPos);
-
-            // 检查拦截卡
             if (this.itemManager.checkBlock(tempPos)) {
                 this.toast.show("🚫 遇到拦截卡，停止移动！", 1500);
                 break;
@@ -165,7 +157,6 @@ export default class GameScene extends Phaser.Scene {
         this.ui.animatePlayerMove(player.id, path, () => {
             if (player.orbitActive) player.orbitSteps += path.length;
 
-            // 礼让卡检测
             const yielder = this.players.find(p => p.id !== player.id && p.position === player.position && p.yieldActive);
             if (yielder) {
                 this.toast.show(`触发 ${yielder.name} 的【礼让卡】！`, 1500);
@@ -236,11 +227,13 @@ export default class GameScene extends Phaser.Scene {
         if (this.cardManager.mainDeckCache.length === 0) this.cardManager.reshuffleDecks();
         const card = this.cardManager.mainDeckCache.pop();
 
-        this.ui.updateMidCard(card);
         this.ui.updateDeckCount(this.cardManager.mainDeckCache.length);
 
-        let shouldMove = (!this.isDuelMode && player.id === this.players[this.currentPlayerIndex].id);
-        this.cardManager.handleCardEffect(player, card, true, shouldMove);
+        this.ui.playDrawAnimation(() => {
+            this.ui.updateMidCard(card);
+            let shouldMove = (!this.isDuelMode && player.id === this.players[this.currentPlayerIndex].id);
+            this.cardManager.handleCardEffect(player, card, true, shouldMove);
+        });
     }
 
     handleSpecialGridBonus(player, isBonus) {
@@ -256,6 +249,7 @@ export default class GameScene extends Phaser.Scene {
 
         this.toast.show(`${player.name} 获得特殊奖励！\n【${this.getCardName(bonusCard.value)}】`, 2000);
         this.ui.updateMidCard(bonusCard);
+
         this.time.delayedCall(2500, () => {
             this.cardManager.handleCardEffect(player, bonusCard, isBonus, true);
         });
@@ -268,16 +262,12 @@ export default class GameScene extends Phaser.Scene {
         });
     }
 
-    // --- 道具阶段 ---
     startItemPhase(player) {
-        if (player.items.length === 0) {
-            this.readyForAction(player);
-            return;
-        }
-        // 初始化状态
+        if (player.items.length === 0) { this.readyForAction(player); return; }
+
         this.itemPhaseState = { timeLeft: 20, selectedItemIndex: -1, timerEvent: null };
-        this.ui.showItemUsageMode(this.itemPhaseState.timeLeft);
-        this.ui.showActionButtons(false); // 确保隐藏抽卡按钮
+        this.ui.showItemUsageMode(this.itemPhaseState.timeLeft, player);
+        this.ui.showActionButtons(false);
 
         this.itemPhaseState.timerEvent = this.time.addEvent({
             delay: 1000,
@@ -286,26 +276,20 @@ export default class GameScene extends Phaser.Scene {
                 this.itemPhaseState.timeLeft--;
                 this.ui.updateTimer(this.itemPhaseState.timeLeft);
                 if (this.itemPhaseState.timeLeft <= 0) {
-                    // 倒计时结束，自动放弃
                     this.onSkipItemPhase();
                 }
             },
             repeat: 19
         });
 
-        // AI 逻辑：简单模拟，1.5秒后自动放弃使用道具
         if (player.isAI) {
             this.time.delayedCall(1500, () => this.onSkipItemPhase());
         }
     }
 
-    // 新增：玩家点击“不使用道具”或倒计时结束
     onSkipItemPhase() {
         const player = this.players[this.currentPlayerIndex];
-
-        // 标记本轮不再询问
         player.hasSkippedItemPhase = true;
-
         this.endItemPhase(player);
     }
 
@@ -316,7 +300,7 @@ export default class GameScene extends Phaser.Scene {
         this.readyForAction(player);
     }
 
-    onItemClick(itemType, index) {
+    onItemClick(itemType, index, x, y) {
         if (!this.itemPhaseState || this.players[this.currentPlayerIndex].isAI) return;
         if (this.players[this.currentPlayerIndex].id !== 0) return;
 
@@ -327,7 +311,7 @@ export default class GameScene extends Phaser.Scene {
         } else {
             this.itemPhaseState.selectedItemIndex = index;
             const data = ITEM_DATA[itemType];
-            this.ui.showItemDescription(data);
+            this.ui.showItemDescription(data, x, y);
             this.ui.timerText.setVisible(false);
         }
     }
@@ -338,22 +322,26 @@ export default class GameScene extends Phaser.Scene {
         const index = this.itemPhaseState.selectedItemIndex;
         const itemType = player.items[index];
 
-        // 标记：本轮已操作过，后续不再进入道具阶段
-        player.hasSkippedItemPhase = true;
+        const success = this.itemManager.handleItemEffect(player, itemType);
 
-        player.items.splice(index, 1);
-        this.ui.updateBtmPanel(player);
-        this.ui.hideItemDescription();
-        this.toast.show(`${player.name} 使用了 【${ITEM_DATA[itemType].name}】`, 1500);
+        if (success) {
+            player.items.splice(index, 1);
+            player.hasSkippedItemPhase = true;
+            this.ui.updateBtmPanel(player);
+            this.ui.hideItemDescription();
+            // 修复：移除多余弹窗
+            // this.toast.show(...)
 
-        if (this.itemPhaseState.timerEvent) this.itemPhaseState.timerEvent.remove();
-        this.itemPhaseState = null;
-        this.ui.hideItemUsageMode();
+            if (this.itemPhaseState.timerEvent) this.itemPhaseState.timerEvent.remove();
+            this.itemPhaseState = null;
+            this.ui.hideItemUsageMode();
 
-        this.itemManager.handleItemEffect(player, itemType);
+            this.time.delayedCall(1500, () => {
+                this.readyForAction(player);
+            });
+        }
     }
 
-    // --- 结算与通用 ---
     calculateRoundScore(player) {
         let sum = 0; let mult = 1;
         player.cards.forEach(val => {
@@ -367,17 +355,17 @@ export default class GameScene extends Phaser.Scene {
         this.ui.updateMidScore(player.roundScore);
     }
 
-    checkRoundOver() {
-        return !this.players.find(p => p.state === 'playing' || p.state === 'waiting');
-    }
+    checkRoundOver() { return !this.players.find(p => p.state === 'playing' || p.state === 'waiting'); }
 
     handleRoundOver() {
         if (this.isRoundSettling) return;
         this.isRoundSettling = true;
         this.musouMode = false;
-        this.players.forEach(p => {
-            if (p.state === 'done' || p.state === 'frozen') p.totalScore += p.roundScore;
-        });
+
+        // 修复：回合结束强制隐藏按钮
+        this.ui.showActionButtons(false);
+
+        this.players.forEach(p => { if (p.state === 'done' || p.state === 'frozen') p.totalScore += p.roundScore; });
         this.ui.refreshTopPanel(this.players);
         this.time.delayedCall(500, () => {
             this.modal.showRoundResult(this.roundCount, this.players, () => {
@@ -396,7 +384,6 @@ export default class GameScene extends Phaser.Scene {
             p.state = 'waiting'; p.roundScore = 0; p.cards = [];
             p.leachActive = false; p.yieldActive = false; p.modestyActive = false;
             p.taxFreeActive = false; p.orbitActive = false; p.orbitSteps = 0;
-            // 重置道具阶段标记
             p.hasSkippedItemPhase = false;
         });
 
