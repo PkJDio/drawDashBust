@@ -1,59 +1,111 @@
-body {
+/* =========================================
+   基础布局与自适应配置 - iOS 优化版
+   ========================================= */
+html, body {
     margin: 0;
     padding: 0;
-    background-color: #fdfbf7; /* 米白色背景 */
+    width: 100%;
+    /* 🟢 修复 iOS 100vh 问题：优先使用 dvh，回退使用 vh */
+    height: 100vh;
+    height: 100dvh;
+
+    /* 🟢 关键：强制移除所有内边距，安全区由内容处理 */
+    padding: 0 !important;
+
+    background: linear-gradient(180deg, #e0f7fa 0%, #fff8e1 100%) !important;
     display: flex;
     justify-content: center;
-    align-items: center;
-    height: 100vh;
+    align-items: center; /* 确保垂直绝对居中 */
     overflow: hidden;
-    font-family: "Nunito", "Microsoft YaHei", sans-serif; /* 换个圆润点的字体如果系统有 */
-    color: #5d4037; /* 深褐文字 */
-}
 
-/* 优先使用系统自带的彩色 Emoji 字体，防止 emoji 显示为黑白 */
-body {
-    font-family: "Nunito", "Microsoft YaHei", "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Android Emoji", sans-serif;
+    font-family: "Nunito", "Microsoft YaHei", sans-serif;
+    color: #5d4037;
+    /* 阻止 iOS 橡皮筋回弹效果 */
+    position: fixed;
 }
 
 #game-container {
-    box-shadow: 0 0 20px rgba(0,0,0,0.1); /* 给游戏画面加个轻阴影 */
-    border-radius: 15px; /* 游戏容器圆角 */
+    position: relative;
+    /* 🟢 修正：高度直接锁定为 100% 视口，宽度按比例自适应 */
+    width: 100%;
+    height: 100%;
+    max-width: 720px;
+    max-height: 1280px;
+
+    /* 🟢 锁定比例，防止容器被内容撑开 */
+    aspect-ratio: 720 / 1280;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1;
     overflow: hidden;
+}
+
+/* 🟢 针对 iOS 的 Canvas 修正 */
+canvas {
+    display: block;
+    /* 🟢 核心：确保 Canvas 永远不会超过容器高度 */
+    max-width: 100% !important;
+    max-height: 100% !important;
+    width: auto !important;
+    height: auto !important;
+    object-fit: contain;
+    /* 消除 Phaser 自动生成的位移干扰 */
+    margin: auto !important;
+}
+
+/* 🟢 处理安全区：通过伪元素或给特定 UI 增加 Padding */
+/* 手牌区域如果有绝对定位，请确保 bottom 使用了 safe-area-inset */
+.html-ui-btn {
+    bottom: calc(30px + env(safe-area-inset-bottom));
 }
 
 /* --- 工具类 --- */
 .hidden { display: none !important; }
 
-/* --- 开始界面 (淡色休闲风) --- */
+/* =========================================
+   UI 界面 (开始/设置/规则) - 已修复居中
+   ========================================= */
+
 #start-screen, #setup-screen {
     position: absolute;
-    top: 0; left: 50%; transform: translateX(-50%);
-    width: 100%; height: 100%; max-width: 720px;
-
-    /* 清新渐变背景：淡蓝 -> 淡粉/淡黄 */
+    /* 🟢 修复：不再手动偏移 50%，而是铺满父容器并用 flex 居中 */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     background: linear-gradient(180deg, #e0f7fa 0%, #fff8e1 100%);
     z-index: 100;
-    display: flex; flex-direction: column;
-    justify-content: center; align-items: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
     transition: opacity 0.5s ease;
 }
 
 /* 标题容器 */
 .title-container {
-    display: flex; justify-content: center; align-items: flex-end;
-    gap: 20px; margin-bottom: 60px; width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 20px;
+    margin-bottom: 60px;
+    width: 100%;
 }
 
 .title-group {
-    display: flex; flex-direction: column; align-items: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .cn-text {
     font-size: 80px;
-    color: #ff7043; /* 活泼的橙色 */
-    margin: 0; line-height: 1;
-    text-shadow: 2px 2px 0px #fff; /* 白边 */
+    color: #ff7043;
+    margin: 0;
+    line-height: 1;
+    text-shadow: 2px 2px 0px #fff;
     font-weight: 900;
     animation: bounce 2s infinite;
     transform: translateX(-2px);
@@ -61,24 +113,34 @@ body {
 
 .en-text {
     font-size: 20px;
-    color: #8d6e63; /* 浅褐色 */
+    color: #8d6e63;
     margin-top: 10px;
-    letter-spacing: 1px; font-weight: bold; text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: bold;
+    text-transform: uppercase;
     background: rgba(255,255,255,0.6);
-    padding: 2px 8px; border-radius: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
 }
 
 /* 按钮区域 */
 .menu-buttons {
-    display: flex; flex-direction: column; align-items: center;
-    gap: 20px; width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    width: 100%;
 }
 
 .menu-btn {
-    width: 220px; padding: 15px; font-size: 24px;
-    border: none; border-radius: 50px;
-    cursor: pointer; font-weight: bold;
-    box-shadow: 0 6px 0 rgba(0,0,0,0.1); /* 积木风格阴影 */
+    width: 220px;
+    padding: 15px;
+    font-size: 24px;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    font-weight: bold;
+    box-shadow: 0 6px 0 rgba(0,0,0,0.1);
     transition: all 0.1s;
     color: #fff;
     font-family: inherit;
@@ -89,37 +151,53 @@ body {
     box-shadow: 0 2px 0 rgba(0,0,0,0.1);
 }
 
-.start-btn {
-    background: #4db6ac; /* 清新绿 */
-}
-
-.rules-btn {
-    background: #90a4ae; /* 蓝灰色 */
-}
+.start-btn { background: #4db6ac; }
+.rules-btn { background: #90a4ae; }
 
 .footer-text {
-    position: absolute; bottom: 20px;
-    color: #b0bec5; font-size: 12px;
+    position: absolute;
+    bottom: 20px;
+    width: 100%;           /* 🟢 修复：强制宽度铺满，否则 absolute 元素宽度可能收缩 */
+    text-align: center;    /* 🟢 修复：强制文字水平居中 */
+    color: #b0bec5;
+    font-size: 12px;
+    line-height: 1.5;      /* 🟢 修复：统一行高，防止字符垂直偏移 */
+
+    /* 🟢 适配：防止 iOS 底部横条遮挡文字 */
+    padding-bottom: env(safe-area-inset-bottom);
+    pointer-events: none;  /* 防止文字挡住底部的点击操作 */
 }
 
 /* --- 设置界面 --- */
 .setup-title {
-    font-size: 32px; color: #5d4037;
+    font-size: 32px;
+    color: #5d4037;
     margin-bottom: 50px;
 }
 
 .counter-container {
-    display: flex; align-items: center; gap: 30px; margin-bottom: 60px;
-    background: #fff; padding: 20px 40px; border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 30px;
+    margin-bottom: 60px;
+    background: #fff;
+    padding: 20px 40px;
+    border-radius: 20px;
     box-shadow: 0 10px 20px rgba(0,0,0,0.05);
 }
 
 .counter-btn {
-    width: 50px; height: 50px;
-    border-radius: 50%; border: none;
-    background: #ffcc80; color: #fff;
-    font-size: 30px; cursor: pointer;
-    display: flex; justify-content: center; align-items: center;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: none;
+    background: #ffcc80;
+    color: #fff;
+    font-size: 30px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     box-shadow: 0 4px 0 #ef6c00;
 }
 
@@ -129,57 +207,83 @@ body {
 }
 
 #ai-count-display {
-    font-size: 60px; font-weight: bold; color: #5d4037;
-    width: 60px; text-align: center;
+    font-size: 60px;
+    font-weight: bold;
+    color: #5d4037;
+    width: 60px;
+    text-align: center;
 }
 
 .text-btn {
-    margin-top: 20px; background: none; border: none;
-    color: #90a4ae; text-decoration: underline; font-size: 16px; cursor: pointer;
+    margin-top: 20px;
+    background: none;
+    border: none;
+    color: #90a4ae;
+    text-decoration: underline;
+    font-size: 16px;
+    cursor: pointer;
 }
 
-/* --- 规则弹窗 (基础框架) --- */
+/* --- 规则弹窗 --- */
 #rules-modal {
-    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
-    width: 100%; height: 100%; max-width: 720px;
-    background-color: rgba(255, 255, 255, 0.6); /* 半透明白底 */
+    position: absolute;
+    top: 0;
+    left: 0; /* 🟢 修复对齐 */
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.6);
     backdrop-filter: blur(8px);
     z-index: 200;
-    display: flex; justify-content: center; align-items: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .modal-content {
-    width: 85%; max-height: 80%;
-    background: #fff; border-radius: 20px;
-    display: flex; flex-direction: column; overflow: hidden;
+    width: 85%;
+    max-height: 80%;
+    background: #fff;
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     box-shadow: 0 20px 50px rgba(0,0,0,0.1);
     border: 4px solid #b2dfdb;
 }
 
 .modal-header {
-    background: #b2dfdb; color: #00695c;
-    padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;
+    background: #b2dfdb;
+    color: #00695c;
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .modal-header h2 { margin: 0; font-size: 24px; }
 
 .close-btn {
-    background: #fff; border: none; border-radius: 50%;
-    width: 36px; height: 36px; color: #00695c;
-    font-size: 24px; cursor: pointer;
-    display: flex; justify-content: center; align-items: center;
+    background: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    color: #00695c;
+    font-size: 24px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .modal-body {
-    padding: 20px; overflow-y: auto; color: #546e7a; line-height: 1.6;
+    padding: 20px;
+    overflow-y: auto;
+    color: #546e7a;
+    line-height: 1.6;
 }
 
-/* --- 规则详情内容样式 (新加) --- */
-.rules-container {
-    text-align: left;
-    padding: 0 10px;
-}
-
+.rules-container { text-align: left; padding: 0 10px; }
 .rules-container h3 {
     color: #d84315;
     border-bottom: 2px solid #ffab91;
@@ -187,17 +291,9 @@ body {
     margin-top: 20px;
     margin-bottom: 10px;
 }
+.rules-container ul { padding-left: 20px; margin: 0; }
+.rules-container li { margin-bottom: 8px; }
 
-.rules-container ul {
-    padding-left: 20px;
-    margin: 0;
-}
-
-.rules-container li {
-    margin-bottom: 8px;
-}
-
-/* 道具标签样式 */
 .item-tag {
     display: inline-block;
     padding: 2px 6px;
@@ -207,84 +303,93 @@ body {
     color: #fff;
     margin-right: 5px;
 }
-.tag-def { background-color: #4caf50; } /* 防御 */
-.tag-atk { background-color: #f44336; } /* 攻击 */
-.tag-bonus { background-color: #ff9800; } /* 奖励 */
-
+.tag-def { background-color: #4caf50; }
+.tag-atk { background-color: #f44336; }
+.tag-bonus { background-color: #ff9800; }
 
 /* =========================================
-   🟢 游戏内 HTML 菜单样式 (暂停菜单)
+   暂停菜单 (游戏内 HTML 菜单)
    ========================================= */
 
-/* 右下角菜单按钮 */
 .html-ui-btn {
     position: absolute;
-    bottom: 30px; /* 距离底部 */
-    right: 30px;  /* 距离右侧 */
-    z-index: 5000; /* 保证在所有 Canvas 内容之上 */
-
+    bottom: 30px;
+    right: 30px;
+    z-index: 5000;
     background-color: #78909c;
     color: white;
     border: none;
-    border-radius: 50%; /* 圆形按钮 */
-    width: 60px; height: 60px;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
     font-size: 24px;
     font-weight: bold;
     cursor: pointer;
     box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     transition: transform 0.1s, background-color 0.2s;
-    display: flex; justify-content: center; align-items: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     font-family: inherit;
-    /* 禁止用户选择文本，防止长按选中 */
     user-select: none;
     -webkit-user-select: none;
 }
 
 .html-ui-btn:active { transform: scale(0.95); }
-.html-ui-btn:hover { background-color: #607d8b; }
 
-/* 菜单遮罩层 */
 #html-menu-overlay {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     background-color: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(5px);
     z-index: 6000;
-    display: flex; justify-content: center; align-items: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
-/* 菜单弹窗盒子 */
 .html-menu-box {
     background-color: #fff8e1;
     border: 4px solid #8d6e63;
     border-radius: 20px;
     padding: 30px;
     width: 280px;
-    display: flex; flex-direction: column; gap: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.4);
     animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .html-menu-title {
-    text-align: center; color: #5d4037; margin: 0 0 15px 0;
-    font-size: 28px; border-bottom: 2px dashed #d7ccc8; padding-bottom: 10px;
+    text-align: center;
+    color: #5d4037;
+    margin: 0 0 15px 0;
+    font-size: 28px;
+    border-bottom: 2px dashed #d7ccc8;
+    padding-bottom: 10px;
 }
 
-/* 菜单项按钮 */
 .html-menu-item {
-    padding: 12px; border: none; border-radius: 10px;
-    font-size: 18px; font-weight: bold; color: white;
-    cursor: pointer; transition: filter 0.2s;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    font-size: 18px;
+    font-weight: bold;
+    color: white;
+    cursor: pointer;
+    transition: filter 0.2s;
     font-family: inherit;
 }
-.html-menu-item:hover { filter: brightness(1.1); }
-.html-menu-item:active { transform: translateY(2px); }
 
-/* 按钮颜色变体 */
 .html-menu-item.resume { background-color: #66bb6a; box-shadow: 0 4px 0 #388e3c; }
 .html-menu-item.normal { background-color: #42a5f5; box-shadow: 0 4px 0 #1976d2; }
 .html-menu-item.warning { background-color: #ef5350; box-shadow: 0 4px 0 #d32f2f; }
 
-/* 弹窗出现动画 */
+/* 动画定义 */
 @keyframes popIn {
     from { transform: scale(0.8); opacity: 0; }
     to { transform: scale(1); opacity: 1; }

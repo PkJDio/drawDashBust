@@ -2,44 +2,47 @@ import GameScene from './GameScene.js';
 
 const config = {
     type: Phaser.AUTO,
+    parent: 'game-container',
     width: 720,
     height: 1280,
-    backgroundColor: '#ffffff',
-    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-    parent: 'game-container',
-    scene: [GameScene]
+    // 🟢 将内部背景设置为透明或米白色，这样能和网页背景融合
+    backgroundColor: '#fdfbf7',
+    scale: {
+        // 🟢 修改为 FIT：保持比例缩放，不足的地方留出 body 的背景
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+        width: 720,
+        height: 1280
+    },
+    scene: [GameScene],
+    // 提高手机端的抗锯齿表现
+    antialias: true
 };
 
 let game;
 
-// 导出启动函数
 export function launchGame(aiCount, isContinue) {
-    // 1. 获取所有界面元素
     const startScreen = document.getElementById('start-screen');
-    const setupScreen = document.getElementById('setup-screen'); // 🟢 新增
+    const setupScreen = document.getElementById('setup-screen');
+    const menuBtn = document.getElementById('html-menu-btn');
 
-    // 2. 强制隐藏它们
-    if (startScreen) {
-        startScreen.style.display = 'none';
-        startScreen.classList.add('hidden'); // 确保CSS类也被添加
-    }
-    if (setupScreen) {
-        setupScreen.style.display = 'none'; // 🟢 新增：隐藏设置界面
-        setupScreen.classList.add('hidden'); // 🟢 新增
-    }
+    if (startScreen) startScreen.classList.add('hidden');
+    if (setupScreen) setupScreen.classList.add('hidden');
+    if (menuBtn) menuBtn.classList.remove('hidden');
 
-    // 3. 销毁旧游戏实例（防止重复创建）
     if (game) {
         game.destroy(true);
         game = null;
     }
 
-    // 4. 启动新游戏
     game = new Phaser.Game(config);
     game.registry.set('aiCount', aiCount);
     game.registry.set('isContinue', isContinue);
 }
 
+/**
+ * 获取本地统计数据
+ */
 export function getGlobalStats() {
     const defaultStats = {
         gamesCompleted: 0,
@@ -50,5 +53,7 @@ export function getGlobalStats() {
     try {
         const data = localStorage.getItem('ddb_global_stats');
         return data ? { ...defaultStats, ...JSON.parse(data) } : defaultStats;
-    } catch (e) { return defaultStats; }
+    } catch (e) {
+        return defaultStats;
+    }
 }

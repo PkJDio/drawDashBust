@@ -107,6 +107,36 @@ export default class BetManager {
         }
         return 0;
     }
+    /**
+     * 🟢 新增：多重结算接口 (用于跑马灯事件)
+     * @param {Object} player 当前触发事件的玩家
+     * @param {Array} gridIds 跑马灯点亮的所有格子ID数组
+     */
+    resolveMultipleLandings(player, gridIds) {
+        const bets = this.playerBets[player.id];
+        if (!bets) return 0;
+
+        let totalWin = 0;
+        let hits = [];
+
+        gridIds.forEach(id => {
+            // 获取格子对应的水果类型 (调用 GameScene 的方法)
+            const fruitType = this.scene.getFruitTypeByGridId(id);
+            if (fruitType && bets[fruitType] > 0) {
+                const odds = this.currentOdds[fruitType];
+                const win = bets[fruitType] * odds;
+                totalWin += win;
+                hits.push(fruitType);
+            }
+        });
+
+        if (totalWin > 0) {
+            player.totalScore += totalWin;
+            this.scene.toast.show(`🎰 跑马灯大奖！获得 ${totalWin} 分！`, 2000);
+            return totalWin;
+        }
+        return 0;
+    }
 
     // --- AI 下注逻辑 ---
     performAIBetting(aiPlayer) {

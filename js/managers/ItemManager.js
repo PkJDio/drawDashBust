@@ -22,7 +22,7 @@ export default class ItemManager {
         }
     }
 
-    handleItemEffect(player, itemType) {
+    handleItemEffect(player, itemType, onComplete = null) {
         const gridId = player.position;
         const grid = this.gridData[gridId];
 
@@ -37,7 +37,8 @@ export default class ItemManager {
                 return this.startExchangeSelection(player);
 
             case 'prophecy':
-                return this.startProphecy(player);
+                // 🟢 传入回调函数
+                return this.startProphecy(player, onComplete);
 
             case 'protection':
                 player.hasProtection = true;
@@ -48,6 +49,7 @@ export default class ItemManager {
                 player.taxFreeActive = true;
                 this.scene.toast.show("🛡️ 免税卡生效，本轮免交过路费！", 1500);
                 return true;
+
 
             default:
                 console.warn("未知道具类型:", itemType);
@@ -143,8 +145,8 @@ export default class ItemManager {
             container.add([btnBg, btnText, zone]);
         };
 
-        createBtn(-100, 60, "小 (0-5)", 0x4db6ac, 'small');
-        createBtn(100, 60, "大 (6-12)", 0xff7043, 'big');
+        createBtn(-100, 60, "小 (0-6)", 0x4db6ac, 'small');
+        createBtn(100, 60, "大 (7-13)", 0xff7043, 'big');
     }
 
     resolveProphecy(player, guess) {

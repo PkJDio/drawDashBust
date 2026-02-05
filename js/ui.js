@@ -13,12 +13,44 @@ export default class GameUI {
             btmHeight: 1280 * 0.2,
             gridSize: 85, gridGap: 6
         };
+
+        // 🟢 [配色方案调整]：晨曦微光 + 抹茶饼干
         this.colors = {
-            grid: 0xffffff, gridBorder: 0x8d6e63, specialGrid: 0xffecb3,
-            textNormal: '#5d4037', textGray: '#b0bec5', textHighlight: '#ff7043', textBust: '#e53935',
-            bgZone: 0xf0f4c3, cardBackBase: 0xffab91, cardBackBorder: 0xd84315, cardBackSide: 0xffccbc,
-            player: [0xff7043, 0x4db6ac, 0x7986cb, 0xffca28, 0xba68c8, 0x4dd0e1]
+            // 棋盘格：纯白
+            grid: 0xffffff,
+
+            // 格子边框：柔和的浅棕灰
+            gridBorder: 0xd7ccc8,
+
+            // 🟢 修改点1：特殊格 (10/22) -> 浅绿色 (清新幸运草)
+            specialGrid: 0xc8e6c9,
+
+            // 文字颜色
+            textNormal: '#5d4037',
+            textGray: '#b0bec5',
+            textHighlight: '#ff7043',
+            textBust: '#e53935',
+
+            // 背景色
+            bgZone: 0xfff8e1, // 米色
+            bgBoard: 0xe0f2f1, // 淡青色
+
+            // 🟢 修改点2：卡背颜色 -> 浅棕色系 (牛奶饼干风格)
+            cardBackBase: 0xd7ccc8,   // 浅棕 (饼干面)
+            cardBackBorder: 0x8d6e63, // 深棕 (烤焦边)
+            cardBackSide: 0xbcaaa4,   // 中棕 (阴影)
+
+            // 玩家颜色：莫兰迪色系
+            player: [
+                0x4db6ac, // P1: 青瓷绿
+                0xffb74d, // P2: 杏黄
+                0x9575cd, // P3: 香芋紫
+                0x4fc3f7, // P4: 天空蓝
+                0xf06292, // P5: 樱花粉
+                0xaed581  // P6: 抹茶绿
+            ]
         };
+
         this.cardDrawer = new UICard(scene, this.colors);
         this.grid = new UIGrid(scene, this.layout, this.colors);
         this.playerInfo = new UIPlayerInfo(scene, this.layout, this.colors, this.cardDrawer);
@@ -29,7 +61,6 @@ export default class GameUI {
         this.activeMarker = null;
         this.onDrawClick = null; this.onGiveUpClick = null; this.onUseItemClick = null; this.onSkipItemClick = null;
         this.onConfirmBetClick = null;
-        // 🟢 已移除 onMenuClick
 
         this.midCardsGroup = null; this.deckPileGroup = null; this.duelGroup = null;
         this.deckPos = { x: 0, y: 0 }; this.midCardPos = { x: 0, y: 0 };
@@ -118,7 +149,7 @@ export default class GameUI {
         const playerColor = this.colors.player[playerIndex] || 0xffffff;
         const tweens = pathArray.map(gridId => {
             const target = this.calculateTokenPos(gridId, playerIndex);
-            return { targets: token, x: target.x, y: target.y, duration: 250, ease: 'Cubic.out', onStart: () => { this.grid.flashGrid(gridId, playerColor); } };
+            return { targets: token, x: target.x, y: target.y, duration: 200, ease: 'Cubic.out', onStart: () => { this.grid.flashGrid(gridId, playerColor); } };
         });
         if (tweens.length === 0) { this.scene.time.delayedCall(300, () => { if (onComplete) onComplete(); }); return; }
         this.scene.tweens.chain({ tweens: tweens, onComplete: onComplete });
@@ -268,6 +299,17 @@ export default class GameUI {
         this.midCardsGroup.clear(true, true);
         this.midScoreText.setText("+0");
         this.hideItemUsageMode();
+    }
+    /**
+     * 清理所有特殊事件产生的灯光、遮罩和特效
+     * 在玩家点击“抽牌”、“放弃”或回合结束时调用
+     */
+    clearSpecialEffects() {
+
+        // 增加一个安全检查，防止在初始化完成前被调用
+        if (this.grid && typeof this.grid.clearAllLights === 'function') {
+            this.grid.clearAllLights();
+        }
     }
 
     updateDeckCount(count) {

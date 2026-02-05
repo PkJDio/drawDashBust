@@ -2,7 +2,7 @@ export default class CardManager {
     constructor(scene) {
         this.scene = scene;
         this.deckConfig = {
-            numbers: { 0:1, 1:1, 2:2, 3:3, 4:4, 5:5, 6:6, 7:7, 8:8, 9:9, 10:10, 11:11, 12:12 },
+            numbers: { 0:1, 1:1, 2:2, 3:3, 4:4, 5:5, 6:6, 7:7, 8:8, 9:9, 10:10, 11:11, 12:12,13:13 },
             specials: {
                 'freeze':3, 'second_chance':3, 'flip_3':3, 'flash':2, 'dare':2, 'feast':2,
                 'score_1':1, 'score_2':1, 'score_3':1, 'score_4':1, 'score_5':1,
@@ -60,6 +60,11 @@ export default class CardManager {
     }
 
     handleDrawClick() {
+        // 🟢 核心修复：无论是人还是AI，只要开始抽牌，就清除棋盘灯光
+        if (this.scene.ui && this.scene.ui.grid) {
+            this.scene.ui.grid.clearAllLights();
+        }
+
         this.scene.forceClearOverlays();
         if (this.scene.isWaitingForModal) return;
 
@@ -94,8 +99,8 @@ export default class CardManager {
             let partial = false;
             if (card.type === 'number') {
                 const v = card.value;
-                if (player.prophecyGuess === 'small' && v >= 0 && v <= 5) win = true;
-                if (player.prophecyGuess === 'big' && v >= 6 && v <= 12) win = true;
+                if (player.prophecyGuess === 'small' && v >= 0 && v <= 6) win = true;
+                if (player.prophecyGuess === 'big' && v >= 7 && v <= 13) win = true;
             } else {
                 partial = true;
             }
@@ -224,7 +229,8 @@ export default class CardManager {
                 this.scene.time.delayedCall(500, () => this.applyTargetEffect(player, target, type, isBonus));
             } else {
                 this.scene.isWaitingForModal = true;
-                this.scene.modal.showTargetSelection(`选择【${this.scene.getCardName(type)}】目标`, validTargets, (target) => {
+                // 🟢 [修改] 调用当前类内部的中文转换方法
+                this.scene.modal.showTargetSelection(`选择【${this.getCardName(type)}】目标`, validTargets, (target) => {
                     this.scene.isWaitingForModal = false;
                     this.applyTargetEffect(player, target, type, isBonus);
                 });
@@ -354,5 +360,118 @@ export default class CardManager {
         let sum = 0;
         cards.forEach(c => { if(c.type==='number') sum += c.value; });
         return sum;
+    }
+
+    /**
+     * 🟢 校验并修正牌库，确保符合规则限制
+     * @param {Array} players 当前所有玩家对象
+     */
+    validateAndFixDecks(players) {
+        // 1. 定义规则限制
+        const LIMITS = {
+            'freeze': 3,
+            'second_chance': 3,
+            'flip_3': 3,
+            'flash': 2,
+            'dare': 2,
+            'feast': 2,
+            // score_X 和 mult_2 比较特殊，通常各限制1张，这里也可以加
+            'mult_2': 1
+        };
+
+        // 2. 统计场上(玩家手中)已经存在的特殊牌
+        const activeCounts = {};
+        players.forEach(p => {
+            p.cards.forEach(cardVal => {
+                if (typeof cardVal === 'string') {
+                    // 如果是 score_X，统一归为 score 类，或者按具体值统计
+                    let key = cardVal;
+                    if (cardVal.startsWith('score_')) key = 'score_';
+
+                    activeCounts[key] = (activeCounts[key] || 0) + 1;
+                }
+            });
+        });
+
+        // 3. 修正特殊牌库 (specialDeckCache)
+        // 我们重建一个临时的合法列表，而不是在原数组上修修补补
+        const validSpecialDeck = [];
+        const currentDeckCounts = {};
+
+        this.specialDeckCache.forEach(card => {
+            let key = card.value;
+            if (key.startsWith('score_')) key = 'score_'; // 如果你想限制加分卡总数，或者保留原样
+
+            // 检查限制
+            const limit = LIMITS[key];
+            if (limit !== undefined) {
+                const alreadyActive = activeCounts[key] || 0;
+                const inDeck = currentDeckCounts[key] || 0;
+
+                if (alreadyActive + inDeck < limit) {
+                    validSpecialDeck.push(card);
+                    currentDeckCounts[key] = inDeck + 1;
+                } else {
+                    console.log(`[CardManager] 修正移除多余卡牌: ${card.value}`);
+                }
+            } else {
+                // 如果是 score_X 这种每种只有1张的，单独判断
+                if (key.startsWith('score_')) {
+                    // 检查场上是否已有这张具体的 +N 卡
+                    const specificActive = players.some(p => p.cards.includes(card.value));
+                    const specificInDeck = validSpecialDeck.some(c => c.value === card.value);
+
+                    if (!specificActive && !specificInDeck) {
+                        validSpecialDeck.push(card);
+                    } else {
+                        console.log(`[CardManager] 修正移除重复加分卡: ${card.value}`);
+                    }
+                } else {
+                    // 没有限制的卡，直接加入
+                    validSpecialDeck.push(card);
+                }
+            }
+        });
+
+        this.specialDeckCache = validSpecialDeck;
+
+        // 4. 同步更新主牌库 mainDeckCache
+        // 过滤掉主牌库里那些“在 specialDeckCache 里已经不存在了”的特殊牌
+        this.mainDeckCache = this.mainDeckCache.filter(c => {
+            if (c.type === 'number') return true;
+            // 如果是特殊牌，检查它是否还在合法的 specialDeckCache 里
+            // 注意：这里简单的 includes 可能不行，因为对象引用不同
+            // 我们通过 value 计数来匹配
+            return true;
+        });
+
+        // 更彻底的做法：重新生成 mainDeckCache 的特殊部分
+        // 先把主牌库里的数字牌提出来
+        const numberCards = this.mainDeckCache.filter(c => c.type === 'number');
+        // 合并合法的特殊牌
+        this.mainDeckCache = [...numberCards, ...this.specialDeckCache];
+        // 再次洗牌以打乱顺序
+        Phaser.Utils.Array.Shuffle(this.mainDeckCache);
+
+        console.log("✅ 牌库规则校验完成，当前剩余特殊牌:", this.specialDeckCache.length);
+        this.scene.ui.updateDeckCount(this.mainDeckCache.length);
+    }
+
+    // 🟢 [新增] 获取卡牌中文名称的方法
+    getCardName(val) {
+        if (typeof val !== 'string') return val;
+
+        if (val.startsWith('score_')) return `+${val.split('_')[1]}分`;
+        if (val === 'mult_2') return '分数翻倍';
+
+        const map = {
+            'freeze': '冻结',
+            'second_chance': '第二次机会',
+            'flip_3': '连抽3张',
+            'flash': '快闪',
+            'dare': '试胆竞速',
+            'feast': '无双'
+        };
+        return map[val] || val;
     }
 }
