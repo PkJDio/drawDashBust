@@ -10,6 +10,7 @@ import EventManager from './managers/EventManager.js';
 import TurnManager from './managers/TurnManager.js';
 import DebugManager from './managers/DebugManager.js';
 import SaveManager from './managers/SaveManager.js';
+import AudioManager from './managers/AudioManager.js';
 
 export default class GameScene extends Phaser.Scene {
     constructor() {
@@ -27,9 +28,15 @@ export default class GameScene extends Phaser.Scene {
         specialCards.forEach(key => {
             this.load.image(`card_${key}`, `assets/cards/card_${key}.png`);
         });
+
+        // 🟢 2. 加载 BGM 资源
+        this.load.audio('bgm_home', 'assets/audio/bgm_home.mp3');
+        this.load.audio('bgm_game', 'assets/audio/bgm_game.mp3');
+        this.load.audio('bgm_duel', 'assets/audio/bgm_duel.mp3');
     }
 
     create() {
+        // 1. 初始化所有管理器
         this.ui = new GameUI(this);
         this.toast = new Toast(this);
         this.modal = new Modal(this);
@@ -43,7 +50,15 @@ export default class GameScene extends Phaser.Scene {
         this.debugManager = new DebugManager(this);
         this.saveManager = new SaveManager(this);
 
+        // 🟢 [新增] 初始化音频管理器
+        this.audioManager = new AudioManager(this);
+
+        // 2. UI 初始化
         this.ui.init();
+
+        // 🟢 [新增] 刚进入场景先播放主页音乐 (作为默认背景)
+        this.audioManager.playBgm('bgm_home');
+
         this.debugManager.setupHtmlMenu();
 
         this.heartbeatTimer = this.time.addEvent({
@@ -54,13 +69,28 @@ export default class GameScene extends Phaser.Scene {
 
         this.bindEvents();
 
+        // 3. 游戏启动逻辑 (读档 vs 新游戏)
         this.aiCount = this.registry.get('aiCount') || 3;
         const isContinue = this.registry.get('isContinue');
 
         if (isContinue && localStorage.getItem('ddb_save')) {
-            this.saveManager.loadGame();
+            // --- 读档模式 ---
+            const success = this.saveManager.loadGame();
+
+            if (success) {
+                // 🟢 [关键] 读档成功，说明进入了游戏状态，切换到游戏BGM
+                this.audioManager.playBgm('bgm_game');
+            } else {
+                // 如果读档失败（比如存档损坏），回退到新游戏
+                console.warn("读档失败，自动开始新游戏");
+                this.initGame(this.aiCount);
+            }
         } else {
+            // --- 新游戏模式 ---
             this.initGame(this.aiCount);
+            // 注意：请确保你的 initGame() 方法里也加了 this.audioManager.playBgm('bgm_game');
+            // 如果 initGame 里没加，AudioManager 这里的 playBgm 有自动去重判断，
+            // 所以你也可以在这里多写一句 this.audioManager.playBgm('bgm_game'); 以防万一
         }
     }
 
@@ -123,6 +153,8 @@ export default class GameScene extends Phaser.Scene {
         this.players.forEach((p, i) => { p.position = 1; this.ui.drawPlayerAt(1, i, p.name); });
         this.ui.resetMidInfo();
         this.ui.updateDeckCount(this.cardManager.mainDeckCache.length);
+
+        this.audioManager.playBgm('bgm_game');
 
         this.ui.animateActiveMarker(this.currentPlayerIndex, () => {
             this.turnManager.startTurn();

@@ -267,11 +267,16 @@ export default class CardManager {
 
     startDuel(challenger, target, isBonusFrom) {
         this.scene.isDuelMode = true;
+
+        // 🟢 切换到紧张的 BGM
+        this.scene.audioManager.playBgm('bgm_duel');
+
         this.duelState = {
             challenger: challenger, target: target, pool: 6,
             cards: { [challenger.id]: [], [target.id]: [] },
             current: target, returnTo: isBonusFrom
         };
+
         this.scene.toast.show(`⚔️ 试胆竞速开始！\n${target.name} 先手`, 1500);
         this.scene.ui.showActionButtons(false);
         this.scene.time.delayedCall(1600, () => this.updateDuelUI());
@@ -339,6 +344,9 @@ export default class CardManager {
         const ds = this.duelState;
         this.scene.isDuelMode = false;
         this.scene.ui.clearDuelPanel();
+
+        // 🟢 竞速结束，切回轻松的游戏 BGM
+        this.scene.audioManager.playBgm('bgm_game');
 
         if (winner === 'tie') { ds.challenger.roundScore += 6; ds.target.roundScore += 6; }
         else if (winner) { winner.roundScore += 6; }

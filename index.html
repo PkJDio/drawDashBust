@@ -147,8 +147,32 @@
 <script type="module">
     import { launchGame, getGlobalStats } from './js/main.js';
 
-    // 🟢 调试模式开关 (修改此处控制显示)
+    // 🟢 调试模式开关
     const isDebug = true;
+
+    // 🟢 [新增] 1. 创建 HTML 层面的主页 BGM 对象
+    // 确保路径正确，音量设为 0.3 (与游戏内保持一致)
+    const homeBgm = new Audio('assets/audio/bgm_home.mp3');
+    homeBgm.loop = true;
+    homeBgm.volume = 0.3;
+
+    // 🟢 [新增] 2. 停止主页音乐的辅助函数 (带一点淡出效果)
+    function stopHomeBgm() {
+        if (!homeBgm.paused) {
+            // 简单淡出逻辑
+            let vol = homeBgm.volume;
+            const fade = setInterval(() => {
+                if (vol > 0.05) {
+                    vol -= 0.05;
+                    homeBgm.volume = vol;
+                } else {
+                    clearInterval(fade);
+                    homeBgm.pause();
+                    homeBgm.currentTime = 0; // 重置进度
+                }
+            }, 50);
+        }
+    }
 
     function formatTime(seconds) {
         const h = Math.floor(seconds / 3600);
@@ -158,6 +182,21 @@
     }
 
     window.addEventListener('DOMContentLoaded', () => {
+
+        // 🟢 [新增] 3. 全局点击监听：只要用户点了屏幕，就开始播放主页音乐
+        const tryPlayBgm = () => {
+            // 只有当音乐暂停时才尝试播放，避免重复触发
+            if (homeBgm.paused) {
+                homeBgm.play().catch(e => console.log("等待交互以播放音频"));
+            }
+            // 移除监听，因为只需要触发一次
+            document.removeEventListener('click', tryPlayBgm);
+            document.removeEventListener('touchstart', tryPlayBgm);
+        };
+        document.addEventListener('click', tryPlayBgm);
+        document.addEventListener('touchstart', tryPlayBgm);
+
+
         // --- 🟢 调试小球逻辑注入 ---
         if (isDebug) {
             const root = document.getElementById('debug-root');
@@ -165,7 +204,6 @@
                 <div id="debug-ball">DEBUG</div>
                 <div id="debug-menu" class="hidden">
                     <div class="debug-title">开发者调试菜单</div>
-
                     <div class="debug-row">
                         <span class="debug-label">强制落点 (1-24):</span>
                         <div class="debug-ctrl">
@@ -175,7 +213,6 @@
                         </div>
                     </div>
                     <button class="debug-apply" id="db-apply" style="margin-bottom:10px;">设置下次落点</button>
-
                     <div class="debug-row">
                         <span class="debug-label">修改我方积分:</span>
                         <div class="debug-ctrl">
@@ -183,12 +220,10 @@
                             <button class="debug-btn" id="score-plus">+50</button>
                         </div>
                     </div>
-
                     <div class="debug-row" style="flex-direction:column; gap:8px;">
                         <button class="debug-apply" id="db-freeze-ai" style="background:#607d8b;">🥶 冻结所有电脑</button>
                         <button class="debug-apply" id="db-give-shield" style="background:#f57c00;">🛡️ 获得保护状态</button>
                     </div>
-
                     <div style="font-size:10px; color:#aaa; margin-top:8px;">* 实时生效，无需重启回合</div>
                 </div>
             `;
@@ -198,7 +233,6 @@
             const dbTarget = document.getElementById('db-target');
             let isDragging = false;
 
-            // 拖拽逻辑
             ball.onpointerdown = (e) => {
                 isDragging = false;
                 let shiftX = e.clientX - ball.getBoundingClientRect().left;
@@ -208,7 +242,6 @@
                     isDragging = true;
                     ball.style.left = pageX - shiftX + 'px';
                     ball.style.top = pageY - shiftY + 'px';
-                    // 菜单跟着球走
                     menu.style.left = pageX - shiftX + 'px';
                     menu.style.top = (pageY - shiftY + 60) + 'px';
                 }
@@ -221,38 +254,17 @@
                     ball.onpointerup = null;
                 };
             };
-
-            // 点击逻辑
             ball.onclick = () => { if (!isDragging) menu.classList.toggle('hidden'); };
-
-            // 调试功能：修改目标值
-            document.getElementById('db-minus').onclick = () => {
-                let v = parseInt(dbTarget.value);
-                if (v > 1) dbTarget.value = v - 1;
-            };
-            document.getElementById('db-plus').onclick = () => {
-                let v = parseInt(dbTarget.value);
-                if (v < 24) dbTarget.value = v + 1;
-            };
-            document.getElementById('db-apply').onclick = () => {
-                const target = parseInt(dbTarget.value);
-                // 🟢 全局注入调试变量，GameScene 会读取此值
-                window.__DEBUG_NEXT_MOVE__ = target;
-                alert(`已设置下次移动终点为: ${target}格`);
-                menu.classList.add('hidden');
-            };
-            // 积分加减
+            document.getElementById('db-minus').onclick = () => { let v = parseInt(dbTarget.value); if (v > 1) dbTarget.value = v - 1; };
+            document.getElementById('db-plus').onclick = () => { let v = parseInt(dbTarget.value); if (v < 24) dbTarget.value = v + 1; };
+            document.getElementById('db-apply').onclick = () => { window.__DEBUG_NEXT_MOVE__ = parseInt(dbTarget.value); alert(`已设置下次移动终点为: ${window.__DEBUG_NEXT_MOVE__}格`); menu.classList.add('hidden'); };
             document.getElementById('score-minus').onclick = () => { window.__DEBUG_CMD__ = { type: 'ADD_SCORE', value: -10 }; };
             document.getElementById('score-plus').onclick = () => { window.__DEBUG_CMD__ = { type: 'ADD_SCORE', value: 50 }; };
-
-            // 冻结 AI
             document.getElementById('db-freeze-ai').onclick = () => { window.__DEBUG_CMD__ = { type: 'FREEZE_AI' }; };
-
-            // 赋予保护盾
             document.getElementById('db-give-shield').onclick = () => { window.__DEBUG_CMD__ = { type: 'GIVE_SHIELD' }; };
         }
 
-        // --- 原有逻辑代码 (保持不变) ---
+        // --- 原有逻辑代码 ---
         const startScreen = document.getElementById('start-screen');
         const setupScreen = document.getElementById('setup-screen');
         const rulesModal = document.getElementById('rules-modal');
@@ -266,7 +278,6 @@
         const btnLaunch = document.getElementById('btn-launch');
         const btnBack = document.getElementById('btn-back');
 
-        // 🟢 动态创建确认弹窗
         const confirmModal = document.createElement('div');
         confirmModal.id = 'confirm-modal';
         confirmModal.style.cssText = `display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10001; justify-content: center; align-items: center;`;
@@ -274,40 +285,17 @@
         document.body.appendChild(confirmModal);
         document.getElementById('btn-confirm-no').onclick = () => confirmModal.style.display = 'none';
 
-        // 🟢 动态创建记录弹窗
-        // 🟢 2. 动态创建“游戏记录”弹窗 (修复后的代码)
         const recordModal = document.createElement('div');
         recordModal.id = 'record-modal';
-        recordModal.style.cssText = `
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.6); z-index: 10000;
-            justify-content: center; align-items: center;
-        `;
-
-        // 👇 这里是修改过的 innerHTML 👇
+        recordModal.style.cssText = `display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; justify-content: center; align-items: center;`;
         recordModal.innerHTML = `
             <div style="background-color: #fff8e1; width: 85%; max-width: 400px; padding: 25px; border-radius: 20px; border: 4px solid #8d6e63; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.3);">
                 <h2 style="color: #5d4037; margin-bottom: 20px; font-size: 28px;">🏆 游戏记录</h2>
-
                 <div style="margin: 20px 0; font-size: 18px; color: #333; display: flex; flex-direction: column; gap: 12px; padding: 0 15px;">
-
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #d7ccc8; padding-bottom: 8px;">
-                        <span>🎮 完成游戏：</span>
-                        <span id="stat-completed" style="font-weight:bold; color:#e65100;">0 局</span>
-                    </div>
-
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #d7ccc8; padding-bottom: 8px;">
-                        <span>🥇 获得第一：</span>
-                        <span id="stat-wins" style="font-weight:bold; color:#4caf50;">0 次</span>
-                    </div>
-
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span>⏱️ 累计时间：</span>
-                        <span id="stat-time" style="font-weight:bold; color:#1976d2;">00:00:00</span>
-                    </div>
-
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #d7ccc8; padding-bottom: 8px;"><span>🎮 完成游戏：</span><span id="stat-completed" style="font-weight:bold; color:#e65100;">0 局</span></div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #d7ccc8; padding-bottom: 8px;"><span>🥇 获得第一：</span><span id="stat-wins" style="font-weight:bold; color:#4caf50;">0 次</span></div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;"><span>⏱️ 累计时间：</span><span id="stat-time" style="font-weight:bold; color:#1976d2;">00:00:00</span></div>
                 </div>
-
                 <button id="btn-close-record" style="background-color: #8d6e63; color: white; border: none; padding: 10px 30px; font-size: 18px; border-radius: 12px; cursor: pointer; margin-top: 15px; font-weight:bold; width: 100%;">关闭</button>
             </div>
         `;
@@ -330,41 +318,38 @@
             const btnContinue = document.createElement('button');
             btnContinue.innerText = "回到游戏"; btnContinue.className = "menu-btn"; btnContinue.style.backgroundColor = "#4caf50"; btnContinue.style.marginBottom = "15px";
             if (menuButtonsDiv && btnStart) menuButtonsDiv.insertBefore(btnContinue, btnStart);
-            btnContinue.onclick = () => launchGame(3, true);
+
+            // 🟢 [修改] 读档进入游戏时，停止 HTML BGM
+            btnContinue.onclick = () => {
+                stopHomeBgm();
+                launchGame(3, true);
+            };
         }
 
         let aiCount = 3;
         btnStart.onclick = () => {
             if (hasSave) {
-                // 如果有存档，显示确认弹窗
                 confirmModal.style.display = 'flex';
-
-                // 绑定“确定”按钮的点击事件
                 document.getElementById('btn-confirm-yes').onclick = () => {
-                    // 1. 删除存档
                     localStorage.removeItem('ddb_save');
-
-                    // 2. 隐藏弹窗
                     confirmModal.style.display = 'none';
-
-                    // 3. (可选) 移除界面上的“回到游戏”按钮，防止视觉困惑
-                    // 找到那个绿色的按钮并移除
                     const allBtns = document.querySelectorAll('.menu-btn');
-                    allBtns.forEach(btn => {
-                        if (btn.innerText === "回到游戏") btn.remove();
-                    });
-
-                    // 4. 关键：不刷新页面，直接切换到设置界面
+                    allBtns.forEach(btn => { if (btn.innerText === "回到游戏") btn.remove(); });
                     startScreen.classList.add('hidden');
                     setupScreen.classList.remove('hidden');
                 };
             } else {
-                // 如果没存档，直接进入设置界面
                 startScreen.classList.add('hidden');
                 setupScreen.classList.remove('hidden');
             }
         };
-        btnLaunch.onclick = () => launchGame(aiCount, false);
+
+        // 🟢 [修改] 开始新游戏时，停止 HTML BGM
+        btnLaunch.onclick = () => {
+            stopHomeBgm();
+            launchGame(aiCount, false);
+        };
+
         btnMinus.onclick = () => { if (aiCount > 1) { aiCount--; updateDisplay(); } };
         btnPlus.onclick = () => { if (aiCount < 5) { aiCount++; updateDisplay(); } };
         btnBack.onclick = () => { setupScreen.classList.add('hidden'); startScreen.classList.remove('hidden'); };
