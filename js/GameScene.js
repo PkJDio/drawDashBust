@@ -15,6 +15,19 @@ export default class GameScene extends Phaser.Scene {
     constructor() {
         super({ key: 'MainScene' });
     }
+    preload() {
+        // 1. 加载数字牌和王牌 (0-14)
+        // 0=黑王, 1-13=数字, 14=红王
+        for (let i = 0; i <= 14; i++) {
+            this.load.image(`card_${i}`, `assets/cards/card_${i}.png`);
+        }
+
+        // 🟢 2. [新增] 加载特殊功能卡背景
+        const specialCards = ['freeze', 'second_chance', 'flip_3', 'flash', 'dare', 'feast'];
+        specialCards.forEach(key => {
+            this.load.image(`card_${key}`, `assets/cards/card_${key}.png`);
+        });
+    }
 
     create() {
         this.ui = new GameUI(this);

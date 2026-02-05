@@ -22,7 +22,7 @@ export default class Modal {
         this.overlay.setDepth(2900);
         this.overlay.setInteractive(new Phaser.Geom.Rectangle(0, 0, 720, 1280), Phaser.Geom.Rectangle.Contains);
 
-        // 🟢 弹窗打开时，隐藏主界面 HTML 菜单按钮 (避免穿透或视觉干扰)
+        // 🟢 弹窗打开时，隐藏主界面 HTML 菜单按钮
         const htmlMenuBtn = document.getElementById('html-menu-btn');
         if (htmlMenuBtn) {
             htmlMenuBtn.classList.add('hidden');
@@ -55,10 +55,20 @@ export default class Modal {
         bg.fillStyle(color, 1);
         bg.fillRoundedRect(-width / 2, -height / 2, width, height, 12);
 
+        // 🟢 核心修复：增加 Padding 防止削顶，增加行间距防止换行重叠
         const t = this.scene.add.text(0, 0, text, {
-            fontSize: '26px', color: this.styles.btnText, fontStyle: 'bold', fontFamily: 'Arial',
-            padding: { top: 8, bottom: 8, left: 5, right: 5 }
+            fontSize: '26px',
+            color: this.styles.btnText,
+            fontStyle: 'bold',
+            fontFamily: 'Arial',
+            align: 'center',
+            padding: { top: 10, bottom: 10, left: 10, right: 10 } // 加大 padding
         }).setOrigin(0.5);
+
+        // 🟢 如果文字太长，自动缩小字体
+        if (t.width > width - 20) {
+            t.setFontSize(20);
+        }
 
         const zone = this.scene.add.zone(0, 0, width, height).setInteractive();
         zone.on('pointerdown', () => {
@@ -73,8 +83,13 @@ export default class Modal {
     }
 
     createTitle(y, text) {
+        // 🟢 核心修复：增加 Title 的 Padding
         const t = this.scene.add.text(0, y, text, {
-            fontSize: '36px', color: this.styles.textTitle, fontStyle: 'bold', padding: { top: 10, bottom: 10 }
+            fontSize: '36px',
+            color: this.styles.textTitle,
+            fontStyle: 'bold',
+            align: 'center',
+            padding: { top: 15, bottom: 15, left: 10, right: 10 }
         }).setOrigin(0.5);
         this.container.add(t);
     }
@@ -233,17 +248,37 @@ export default class Modal {
         this.createBtn(130, btnY, 200, 60, "确定", 0xff7043, onConfirm);
     }
 
+    // 🟢 [核心修复] 给标题和按钮增加 Padding，支持换行
     showTargetSelection(titleText, targets, onSelect) {
         this.createOverlay();
         const contentH = targets.length * 80 + 150;
         const height = Math.max(400, contentH);
         const layout = this.createWindowBase(height);
+
+        // 这里的 titleText 可能是 "请选择【预言卡】目标"
         this.createTitle(layout.topY + 60, titleText);
+
         let startY = layout.topY + 140;
         targets.forEach((p, i) => {
             const y = startY + i * 80;
-            this.createBtn(0, y, 280, 60, p.name, 0x7e57c2, () => { onSelect(p); });
+            // 如果 targets 传进来的是对象数组 {name: '小', value: 'small'}
+            // 则显示 name，否则显示 p 本身
+            const label = p.name ? p.name : p;
+
+            this.createBtn(0, y, 280, 60, label, 0x7e57c2, () => { onSelect(p); });
         });
+    }
+
+    // 🟢 [新增] 专门的预言选择界面 (如果需要的话可以调用这个)
+    showProphecySelection(onSelect) {
+        this.createOverlay();
+        const layout = this.createWindowBase(450);
+        this.createTitle(layout.topY + 60, "🔮 预言下一张牌");
+
+        const startY = layout.topY + 160;
+
+        this.createBtn(0, startY, 280, 70, "小 (0-6)", 0x4db6ac, () => { onSelect('small'); });
+        this.createBtn(0, startY + 90, 280, 70, "大 (7-13)", 0xff7043, () => { onSelect('big'); });
     }
 
     destroy() {
