@@ -20,6 +20,10 @@ html, body {
 
     font-family: "Nunito", "Microsoft YaHei", sans-serif;
     color: #5d4037;
+    /* 🟢 [新增] 禁止双击缩放，但允许滚动 (为了规则弹窗能滚) */
+    touch-action: manipulation;
+
+
     /* 阻止 iOS 橡皮筋回弹效果 */
     position: fixed;
 }
@@ -34,7 +38,7 @@ html, body {
 
     /* 🟢 锁定比例，防止容器被内容撑开 */
     aspect-ratio: 720 / 1280;
-
+    touch-action: none;
     display: flex;
     justify-content: center;
     align-items: center;

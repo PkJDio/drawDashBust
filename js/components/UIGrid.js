@@ -180,6 +180,12 @@ export default class UIGrid {
             currentId = currentId >= 24 ? 1 : currentId + 1;
             stepCount++;
 
+            // 🟢 [新增] 播放跑马灯音效
+            // 只有当速度够快时才播放，或者始终播放（因为你已经剪辑得很短了，直接播放即可）
+            if (this.scene.audioManager) {
+                this.scene.audioManager.playSfx('sfx_marquee');
+            }
+
             // 2. 点亮当前灯
             for(let i = 0; i < count; i++) {
                 let headId = (currentId - i) <= 0 ? (currentId - i + 24) : (currentId - i);

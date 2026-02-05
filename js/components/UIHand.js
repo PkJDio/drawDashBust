@@ -109,6 +109,9 @@ export default class UIHand {
 
                     // 🟢 核心交互逻辑修改
                     zone.on('pointerdown', () => {
+                        // 🟢 [新增] 播放点击音效
+                        this.scene.audioManager.playSfx('sfx_select');
+
                         // 判断：如果点击的是当前已经选中的道具
                         if (this.selectedIndex === index) {
                             // 逻辑 A: 取消选中

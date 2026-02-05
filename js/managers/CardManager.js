@@ -1,3 +1,5 @@
+// js/managers/CardManager.js
+
 export default class CardManager {
     constructor(scene) {
         this.scene = scene;
@@ -60,7 +62,6 @@ export default class CardManager {
     }
 
     handleDrawClick() {
-        // 🟢 核心修复：无论是人还是AI，只要开始抽牌，就清除棋盘灯光
         if (this.scene.ui && this.scene.ui.grid) {
             this.scene.ui.grid.clearAllLights();
         }
@@ -86,6 +87,8 @@ export default class CardManager {
 
         this.scene.ui.updateDeckCount(this.mainDeckCache.length);
         this.scene.ui.showActionButtons(false);
+
+        this.scene.audioManager.playSfx('sfx_draw');
 
         this.scene.ui.playDrawAnimation(() => {
             this.scene.ui.updateMidCard(card);
@@ -173,16 +176,19 @@ export default class CardManager {
             });
 
         } else {
+            this.scene.audioManager.playSfx('sfx_bust', true);
             this.scene.toast.show(`💥 ${player.name} 爆牌！\n重复点数 ${conflictCard.value}`, 2000);
+
             player.roundScore = 0;
-            player.state = 'bust';
+            player.state = 'bust'; // 标记状态
 
             if(player.id===0) this.scene.ui.updateBtmPanel(player);
             this.scene.ui.refreshTopPanel(this.scene.players);
             if (this.scene.forceDrawState) this.scene.forceDrawState = null;
 
             if (this.scene.isDuelMode) {
-                this.scene.time.delayedCall(2500, () => this.onDuelGiveUp());
+                // 🟢 试胆竞速中爆牌，稍微快一点进入结算
+                this.scene.time.delayedCall(2000, () => this.onDuelGiveUp());
             } else {
                 this.scene.time.delayedCall(2500, () => this.scene.nextTurn());
             }
@@ -196,6 +202,11 @@ export default class CardManager {
 
         let msg = "";
         let delayTime = 1500;
+
+        if (type.startsWith('score_')) this.scene.audioManager.playSfx('sfx_score');
+        else if (type === 'mult_2' || type === 'feast') this.scene.audioManager.playSfx('sfx_win');
+        else if (type === 'freeze') this.scene.audioManager.playSfx('sfx_select');
+
 
         if (type.startsWith('score_')) msg = `${player.name} 获得【+${type.split('_')[1]}分】！`;
         else if (type === 'mult_2') msg = `${player.name} 获得【分数翻倍】！`;
@@ -229,7 +240,6 @@ export default class CardManager {
                 this.scene.time.delayedCall(500, () => this.applyTargetEffect(player, target, type, isBonus));
             } else {
                 this.scene.isWaitingForModal = true;
-                // 🟢 [修改] 调用当前类内部的中文转换方法
                 this.scene.modal.showTargetSelection(`选择【${this.getCardName(type)}】目标`, validTargets, (target) => {
                     this.scene.isWaitingForModal = false;
                     this.applyTargetEffect(player, target, type, isBonus);
@@ -249,6 +259,7 @@ export default class CardManager {
         }
 
         if (type === 'freeze') {
+            this.scene.audioManager.playSfx('sfx_freeze', true);
             target.state = 'frozen';
             this.scene.toast.show(`${target.name} 被冻结！`, 1500);
             this.scene.ui.refreshTopPanel(this.scene.players);
@@ -257,7 +268,28 @@ export default class CardManager {
         else if (type === 'flip_3') {
             this.scene.toast.show(`${target.name} 开始连抽3张！`, 1500);
             this.scene.time.delayedCall(2000, () => {
-                this.scene.startForceDraw(target, 3, () => this.scene.finishAction(source, isBonus));
+                let count = 0;
+                const max = 3;
+                const runFlip = () => {
+                    if (count >= max || target.state === 'bust') {
+                        this.scene.finishAction(source, isBonus);
+                        return;
+                    }
+                    count++;
+                    this.scene.audioManager.playSfx('sfx_draw');
+                    const card = this.drawNumberCard();
+                    if (!card) {
+                        this.scene.finishAction(source, isBonus);
+                        return;
+                    }
+                    this.scene.ui.updateDeckCount(this.mainDeckCache.length);
+                    this.scene.ui.playDrawAnimation(() => {
+                        this.scene.ui.updateMidCard(card);
+                        this.handleCardEffect(target, card, true, false);
+                        this.scene.time.delayedCall(800, runFlip);
+                    });
+                };
+                runFlip();
             });
         }
         else if (type === 'dare') {
@@ -265,102 +297,201 @@ export default class CardManager {
         }
     }
 
+    // ================= 🟢 试胆竞速 (Duel) 核心逻辑修改 =================
+
     startDuel(challenger, target, isBonusFrom) {
         this.scene.isDuelMode = true;
-
-        // 🟢 切换到紧张的 BGM
         this.scene.audioManager.playBgm('bgm_duel');
 
+        // 🟢 1. 规则设置：共6张牌 (Pool=6)，被挑战者(Target)先手
         this.duelState = {
-            challenger: challenger, target: target, pool: 6,
+            challenger: challenger,
+            target: target,
+            pool: 6, // 总牌池限制
             cards: { [challenger.id]: [], [target.id]: [] },
-            current: target, returnTo: isBonusFrom
+            current: target, // 被挑战者先行动
+            returnTo: isBonusFrom
         };
 
-        this.scene.toast.show(`⚔️ 试胆竞速开始！\n${target.name} 先手`, 1500);
+        this.scene.toast.show(`⚔️ 试胆竞速开始！\n被挑战者 ${target.name} 先手`, 2000);
         this.scene.ui.showActionButtons(false);
-        this.scene.time.delayedCall(1600, () => this.updateDuelUI());
+        this.scene.time.delayedCall(2100, () => this.updateDuelUI());
     }
 
     updateDuelUI() {
         const ds = this.duelState;
         this.scene.ui.updateDuelPanel(ds.challenger, ds.target, ds.pool, ds.cards[ds.challenger.id], ds.cards[ds.target.id]);
 
+        // 🟢 2. 检查单人手牌上限 (3张)
+        // 如果当前玩家已经抽了3张，他必须停止，这会触发比拼结束逻辑
+        if (ds.cards[ds.current.id].length >= 3) {
+            this.scene.toast.show(`${ds.current.name} 已达3张上限，强制停止`);
+            this.scene.time.delayedCall(1500, () => this.onDuelGiveUp());
+            return;
+        }
+
+        // 🟢 3. 检查总牌池 (防止溢出)
+        if (ds.pool <= 0) {
+            this.onDuelGiveUp(); // 视为结束
+            return;
+        }
+
+        // 轮到谁操作
         if (ds.current.isAI) {
             this.scene.ui.showActionButtons(false);
             this.scene.time.delayedCall(1500, () => {
-                if (ds.pool > 0 && Math.random() > 0.1) this.onDuelDraw();
-                else this.onDuelGiveUp();
+                // AI 逻辑：只要不到 3 张且分数不太高，就抽
+                // 简单点：不到 15 分就抽
+                const myScore = this.calcDuelScore(ds.cards[ds.current.id]);
+                if (myScore < 15) {
+                    this.onDuelDraw();
+                } else {
+                    this.onDuelGiveUp();
+                }
             });
         } else {
+            // 玩家操作：显示抽牌/放弃
             this.scene.ui.showActionButtons(true);
         }
     }
 
     onDuelDraw() {
-        this.scene.forceClearOverlays();
         const ds = this.duelState;
+        this.scene.forceClearOverlays();
         this.scene.ui.showActionButtons(false);
+        this.scene.audioManager.playSfx('sfx_draw');
 
         const card = this.drawNumberCard();
         if (!card) return;
 
+        // 扣减公共牌池
+        ds.pool--;
         this.scene.ui.updateDeckCount(this.mainDeckCache.length);
 
         this.scene.ui.playDrawAnimation(() => {
             this.scene.ui.updateMidCard(card);
+
+            // 将牌加入当前玩家的临时区域
+            ds.cards[ds.current.id].push(card);
+
+            // 检查是否爆牌 (handleCardEffect 会调用 handlePotentialBust 并修改 player.state)
+            // 但为了逻辑清晰，我们这里复用 handleCardEffect，让它处理 UI 和 逻辑
+            // 注意：handleCardEffect 会把牌加入 player.cards，这里其实重复加了一次 logic，但为了判定 bust 必须走流程
+            // 修正：handleCardEffect 里的 push 会导致 double add，我们只利用它的 bust 判定
+
+            // 最好的办法：手动判定 Bust，不走 handleCardEffect，以免污染主手牌逻辑太深
+            // 但题目要求“爆牌者本轮0分”，这正是 handlePotentialBust 做的事
+
             this.handleCardEffect(ds.current, card, true, false);
-            ds.pool--;
+            // handleCardEffect -> handlePotentialBust -> onDuelGiveUp (delayed)
+
+            // 如果没爆牌，切换回合
+            // 注意：如果爆牌了，handlePotentialBust 会设置 state='bust' 并延迟调用 onDuelGiveUp
+            // 所以这里只需要处理没爆牌的情况
+            if (ds.current.state !== 'bust') {
+                this.scene.time.delayedCall(1000, () => {
+                    // 没爆牌，切换到对手
+                    ds.current = (ds.current === ds.challenger) ? ds.target : ds.challenger;
+                    this.updateDuelUI();
+                });
+            }
         });
     }
 
     onDuelGiveUp() {
+        // 🟢 4. 任意一方“放弃”或“爆牌”，试胆竞速立即结束
         const ds = this.duelState;
         this.scene.ui.showActionButtons(false);
-        this.scene.toast.show(`${ds.current.name} 放弃竞速`, 1000);
 
-        // 🟢 修改点：如果已经爆牌(bust)，不要覆盖为 done
-        if (ds.current.state !== 'bust') {
-            ds.current.state = 'done';
-        }
+        // 这里的 GiveUp 意味着“比拼结算”
+        // 如果是因为爆牌进来的，state 已经是 bust 了
+        // 如果是主动放弃进来的，state 还是 playing
 
-        this.scene.time.delayedCall(1100, () => this.endDuel(ds.current === ds.challenger ? ds.target : ds.challenger));
+        this.resolveDuelWinner();
     }
 
     resolveDuelWinner() {
         const ds = this.duelState;
-        const cScore = this.calcDuelScore(ds.cards[ds.challenger.id]);
-        const tScore = this.calcDuelScore(ds.cards[ds.target.id]);
-        let winner = null;
-        if (cScore > tScore) winner = ds.challenger;
-        else if (tScore > cScore) winner = ds.target;
-        else winner = 'tie';
 
-        this.scene.toast.show(`竞速结束！\n${ds.challenger.name}: ${cScore} vs ${ds.target.name}: ${tScore}`, 2000);
-        this.scene.time.delayedCall(2100, () => this.endDuel(winner));
+        let cScore = this.calcDuelScore(ds.cards[ds.challenger.id]);
+        let tScore = this.calcDuelScore(ds.cards[ds.target.id]);
+
+        // 🟢 5. 判定胜负逻辑
+
+        // A. 爆牌判定
+        if (ds.challenger.state === 'bust') {
+            cScore = -1; // 标记为爆牌
+        }
+        if (ds.target.state === 'bust') {
+            tScore = -1;
+        }
+
+        let winner = null;
+        let msg = "";
+
+        if (cScore === -1) {
+            winner = ds.target;
+            msg = `${ds.challenger.name} 爆牌！\n${ds.target.name} 获胜 (总分+5)`;
+        } else if (tScore === -1) {
+            winner = ds.challenger;
+            msg = `${ds.target.name} 爆牌！\n${ds.challenger.name} 获胜 (总分+5)`;
+        } else {
+            // 正常比拼
+            if (cScore > tScore) {
+                winner = ds.challenger;
+                msg = `${ds.challenger.name} 点数大！\n获胜 (总分+5)`;
+            } else if (tScore > cScore) {
+                winner = ds.target;
+                msg = `${ds.target.name} 点数大！\n获胜 (总分+5)`;
+            } else {
+                winner = 'tie';
+                msg = `双方平局！\n(双方总分+5)`;
+            }
+        }
+
+        this.scene.toast.show(msg, 3000);
+        this.scene.time.delayedCall(3000, () => this.endDuel(winner));
     }
 
     endDuel(winner) {
         const ds = this.duelState;
         this.scene.isDuelMode = false;
         this.scene.ui.clearDuelPanel();
-
-        // 🟢 竞速结束，切回轻松的游戏 BGM
         this.scene.audioManager.playBgm('bgm_game');
 
-        if (winner === 'tie') { ds.challenger.roundScore += 6; ds.target.roundScore += 6; }
-        else if (winner) { winner.roundScore += 6; }
+        // 🟢 6. 奖励分配与行动权控制
 
-        this.scene.calculateRoundScore(ds.challenger);
-        this.scene.calculateRoundScore(ds.target);
+        // 奖励：总积分 +5 (totalScore)
+        if (winner === 'tie') {
+            ds.challenger.totalScore += 5;
+            ds.target.totalScore += 5;
+        } else if (winner) {
+            winner.totalScore += 5;
+        }
         this.scene.ui.refreshTopPanel(this.scene.players);
 
-        const challengerWon = (winner === ds.challenger || winner === 'tie');
+        // 行动权：
+        // 规则：输家本轮行动直接结束。
+        // 规则：平局双方都可正常行动 (发起者继续)。
+        // 规则：赢家...通常赢家是没爆牌的，或者点数大的。如果发起者赢了，继续行动？
 
-        if (challengerWon) {
-            this.scene.readyForAction(ds.challenger);
+        // 逻辑推导：
+        // 如果 challenger 输了 -> nextTurn
+        // 如果 challenger 赢了 -> readyForAction
+        // 如果 tie -> readyForAction
+
+        const challengerLost = (winner === ds.target); // 发起者输了
+
+        // 特殊情况：如果发起者自己爆牌了，handlePotentialBust 已经把分归零了
+        // 这里只需要处理流程流转
+
+        if (challengerLost) {
+            // 发起者输了，结束行动
+            this.scene.time.delayedCall(1000, () => this.scene.nextTurn());
         } else {
-            this.scene.time.delayedCall(1500, () => this.scene.nextTurn());
+            // 发起者赢了或平局，继续行动
+            // 如果发起者此时已经满了7张或者之前状态不对，readyForAction 会处理
+            this.scene.readyForAction(ds.challenger);
         }
     }
 
@@ -370,115 +501,63 @@ export default class CardManager {
         return sum;
     }
 
-    /**
-     * 🟢 校验并修正牌库，确保符合规则限制
-     * @param {Array} players 当前所有玩家对象
-     */
     validateAndFixDecks(players) {
-        // 1. 定义规则限制
         const LIMITS = {
-            'freeze': 3,
-            'second_chance': 3,
-            'flip_3': 3,
-            'flash': 2,
-            'dare': 2,
-            'feast': 2,
-            // score_X 和 mult_2 比较特殊，通常各限制1张，这里也可以加
-            'mult_2': 1
+            'freeze': 3, 'second_chance': 3, 'flip_3': 3, 'flash': 2, 'dare': 2, 'feast': 2, 'mult_2': 1
         };
-
-        // 2. 统计场上(玩家手中)已经存在的特殊牌
         const activeCounts = {};
         players.forEach(p => {
             p.cards.forEach(cardVal => {
                 if (typeof cardVal === 'string') {
-                    // 如果是 score_X，统一归为 score 类，或者按具体值统计
                     let key = cardVal;
                     if (cardVal.startsWith('score_')) key = 'score_';
-
                     activeCounts[key] = (activeCounts[key] || 0) + 1;
                 }
             });
         });
 
-        // 3. 修正特殊牌库 (specialDeckCache)
-        // 我们重建一个临时的合法列表，而不是在原数组上修修补补
         const validSpecialDeck = [];
         const currentDeckCounts = {};
 
         this.specialDeckCache.forEach(card => {
             let key = card.value;
-            if (key.startsWith('score_')) key = 'score_'; // 如果你想限制加分卡总数，或者保留原样
-
-            // 检查限制
+            if (key.startsWith('score_')) key = 'score_';
             const limit = LIMITS[key];
             if (limit !== undefined) {
                 const alreadyActive = activeCounts[key] || 0;
                 const inDeck = currentDeckCounts[key] || 0;
-
                 if (alreadyActive + inDeck < limit) {
                     validSpecialDeck.push(card);
                     currentDeckCounts[key] = inDeck + 1;
-                } else {
-                    console.log(`[CardManager] 修正移除多余卡牌: ${card.value}`);
                 }
             } else {
-                // 如果是 score_X 这种每种只有1张的，单独判断
                 if (key.startsWith('score_')) {
-                    // 检查场上是否已有这张具体的 +N 卡
                     const specificActive = players.some(p => p.cards.includes(card.value));
                     const specificInDeck = validSpecialDeck.some(c => c.value === card.value);
-
-                    if (!specificActive && !specificInDeck) {
-                        validSpecialDeck.push(card);
-                    } else {
-                        console.log(`[CardManager] 修正移除重复加分卡: ${card.value}`);
-                    }
+                    if (!specificActive && !specificInDeck) validSpecialDeck.push(card);
                 } else {
-                    // 没有限制的卡，直接加入
                     validSpecialDeck.push(card);
                 }
             }
         });
 
         this.specialDeckCache = validSpecialDeck;
-
-        // 4. 同步更新主牌库 mainDeckCache
-        // 过滤掉主牌库里那些“在 specialDeckCache 里已经不存在了”的特殊牌
         this.mainDeckCache = this.mainDeckCache.filter(c => {
             if (c.type === 'number') return true;
-            // 如果是特殊牌，检查它是否还在合法的 specialDeckCache 里
-            // 注意：这里简单的 includes 可能不行，因为对象引用不同
-            // 我们通过 value 计数来匹配
             return true;
         });
-
-        // 更彻底的做法：重新生成 mainDeckCache 的特殊部分
-        // 先把主牌库里的数字牌提出来
         const numberCards = this.mainDeckCache.filter(c => c.type === 'number');
-        // 合并合法的特殊牌
         this.mainDeckCache = [...numberCards, ...this.specialDeckCache];
-        // 再次洗牌以打乱顺序
         Phaser.Utils.Array.Shuffle(this.mainDeckCache);
-
-        console.log("✅ 牌库规则校验完成，当前剩余特殊牌:", this.specialDeckCache.length);
         this.scene.ui.updateDeckCount(this.mainDeckCache.length);
     }
 
-    // 🟢 [新增] 获取卡牌中文名称的方法
     getCardName(val) {
         if (typeof val !== 'string') return val;
-
         if (val.startsWith('score_')) return `+${val.split('_')[1]}分`;
         if (val === 'mult_2') return '分数翻倍';
-
         const map = {
-            'freeze': '冻结',
-            'second_chance': '第二次机会',
-            'flip_3': '连抽3张',
-            'flash': '快闪',
-            'dare': '试胆竞速',
-            'feast': '无双'
+            'freeze': '冻结', 'second_chance': '第二次机会', 'flip_3': '连抽3张', 'flash': '快闪', 'dare': '试胆竞速', 'feast': '无双'
         };
         return map[val] || val;
     }
