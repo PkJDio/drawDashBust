@@ -5,12 +5,30 @@ export default class EventManager {
     }
 
     handleSpecialGridBonus(player, isBonus) {
+        // 🟢 [调试模式拦截]：优先检查是否有指定的调试事件 ID
+        if (typeof window !== 'undefined' && window.__DEBUG_NEXT_EVENT__) {
+            const eventId = window.__DEBUG_NEXT_EVENT__;
+            console.log(`[DEBUG] 拦截正常逻辑，强制触发事件: ${eventId}`);
+
+            // 消费掉指令，防止重复触发
+            window.__DEBUG_NEXT_EVENT__ = null;
+
+            // 动态调用对应的 executeEvent 方法
+            const funcName = `executeEvent${eventId}`;
+            if (typeof this[funcName] === 'function') {
+                this[funcName](player, isBonus);
+                return; // 🛑 调试模式下直接退出，不走下面的格子逻辑
+            } else {
+                console.error(`[DEBUG] 找不到函数: ${funcName}`);
+            }
+        }
+
         const gridId = player.position;
         const rand = Math.random();
 
-        // 调试日志
+        // 正常调试日志
         const pColor = this.scene.ui.colors.player[player.id];
-        console.log(`[DEBUG] 触发幸运格: ${gridId}, 玩家ID: ${player.id}, 颜色值: ${pColor ? pColor.toString(16) : '未知'}`);
+        console.log(`[DEBUG] 触发幸运格检查: ${gridId}, 玩家ID: ${player.id}`);
 
         if (gridId === 10) {
             if (rand < 0.2) this.executeEvent1(player, isBonus);
@@ -26,6 +44,8 @@ export default class EventManager {
             else this.executeEvent10(player, isBonus);
         }
     }
+
+    // --- 事件列表保持不变 ---
 
     executeEvent1(player, isBonus) {
         const specialCards = this.scene.cardManager.specialDeckCache;

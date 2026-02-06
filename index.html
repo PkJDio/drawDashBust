@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="css/style.css">
     <script src="js/phaser.min.js"></script>
     <style>
-        /* --- 原有样式保持不变 --- */
+        /* --- 样式部分保持不变 --- */
         .rules-container {
             text-align: left; padding: 0 10px; font-size: 16px; line-height: 1.6; color: #333;
             max-height: 60vh; overflow-y: auto;
@@ -61,7 +61,7 @@
         @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         .hidden { display: none !important; }
 
-        /* --- 🟢 调试工具 (Debug Ball) 样式 --- */
+        /* --- 调试工具 (Debug Ball) 样式 --- */
         #debug-ball {
             position: fixed; top: 50px; left: 20px; width: 50px; height: 50px;
             background: radial-gradient(circle at 30% 30%, #ff5252, #b71c1c);
@@ -85,16 +85,13 @@
         .debug-apply { width: 100%; padding: 8px; background: #2e7d32; border: none; color: white; border-radius: 6px; font-weight: bold; margin-top: 5px; cursor: pointer; }
         .debug-apply:active { background: #1b5e20; }
 
-        /* --- 🟢 资源加载界面样式 --- */
+        /* --- 资源加载界面样式 --- */
         #loading-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            /* 暖色渐变 */
             background: linear-gradient(180deg, #e0f7fa 0%, #fff8e1 100%) !important;
             z-index: 20000;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
-
-        /* 标题容器 */
         #loading-screen .title-container {
             flex-direction: row !important;
             flex-wrap: nowrap !important;
@@ -102,37 +99,30 @@
             margin-top: 0 !important;
             margin-bottom: 40px;
             width: 90%;
-            justify-content: center; /* 确保居中 */
+            justify-content: center;
         }
-
         #loading-screen .cn-text {
             font-size: clamp(24px, 12vw, 60px) !important;
             transform: none !important;
             animation: bounce 2s infinite;
             white-space: nowrap;
         }
-
-        /* 🟢 [保留] 进度条容器 - 30px 高 */
         .progress-container {
             position: absolute; top: 75%;
             width: 75%; max-width: 320px;
-            height: 30px; /* 保持加高 */
+            height: 30px;
             background-color: rgba(255, 255, 255, 0.5);
             border-radius: 15px;
             overflow: hidden;
             border: 2px solid #fff;
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
-
-        /* 🟢 [保留] 进度条填充 */
         #progress-fill {
             width: 0%; height: 100%;
             background: linear-gradient(90deg, #ff8a65, #e64a19);
             border-radius: 15px;
             transition: width 0.1s linear;
         }
-
-        /* 🟢 [保留] 显示具体资源名字的文字 */
         #loading-detail {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -147,13 +137,11 @@
             text-overflow: ellipsis;
             padding: 0 10px;
         }
-
     </style>
 </head>
 <body>
 
 <div id="game-container"></div>
-
 <div id="debug-root"></div>
 
 <div id="loading-screen">
@@ -161,7 +149,6 @@
         <div class="title-group"><div class="cn-text">资源</div></div>
         <div class="title-group"><div class="cn-text">加载中</div></div>
     </div>
-
     <div class="progress-container" id="progress-box">
         <div id="progress-fill"></div>
         <div id="loading-detail">等待加载...</div>
@@ -221,22 +208,6 @@
 </div>
 
 <script type="module">
-
-    // 🟢 [修改] iOS/WeChat 防缩放补丁 (精简版)
-    // 1. 只保留禁止“双指捏合” (Pinch)，这个不会影响点击
-    document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
-
-    // 2. ❌ [删除] 禁止双击缩放的代码 (就是这部分导致按钮点不动，删掉它！)
-    /* let lastTouchEnd = 0;
-    document.addEventListener('touchend', function (event) { ... });
-    */
-
-    // 3. ❌ [建议删除] 禁止多指触摸 (这行有时也会导致误触拦截，建议也删掉，交给 Phaser 处理)
-    /*
-    document.addEventListener('touchstart', function(event) { ... });
-    */
-
-    // --- 下面是正常的引入逻辑 ---
     import { initGameEngine, startGameLogic, getGlobalStats } from './js/main.js';
 
     const isDebug = true;
@@ -249,19 +220,18 @@
     }
 
     window.addEventListener('DOMContentLoaded', () => {
-
-        // 1. 自动启动引擎
         initGameEngine();
 
-        // --- 调试小球逻辑 (保持不变) ---
+        // --- 🟢 调试小球完整逻辑 (包含强制事件) ---
         if (isDebug) {
             const root = document.getElementById('debug-root');
             root.innerHTML = `
                 <div id="debug-ball">DEBUG</div>
                 <div id="debug-menu" class="hidden">
                     <div class="debug-title">开发者调试菜单</div>
+
                     <div class="debug-row">
-                        <span class="debug-label">强制落点 (1-24):</span>
+                        <span class="debug-label">下次落点 (1-24):</span>
                         <div class="debug-ctrl">
                             <button class="debug-btn" id="db-minus">-</button>
                             <input type="text" class="debug-input" id="db-target" value="10" readonly>
@@ -269,7 +239,18 @@
                         </div>
                     </div>
                     <button class="debug-apply" id="db-apply" style="margin-bottom:10px;">设置下次落点</button>
-                    <div class="debug-row">
+
+                    <div class="debug-row" style="border-top:1px dashed #555; padding-top:10px;">
+                        <span class="debug-label">强制事件 (1-10):</span>
+                        <div class="debug-ctrl">
+                            <button class="debug-btn" id="ev-minus">-</button>
+                            <input type="text" class="debug-input" id="ev-target" value="1" readonly style="width:30px; color:#ffeb3b;">
+                            <button class="debug-btn" id="ev-plus">+</button>
+                        </div>
+                    </div>
+                    <button class="debug-apply" id="ev-apply" style="background:#673ab7; margin-bottom:10px;">设置下次必出事件</button>
+
+                    <div class="debug-row" style="border-top:1px dashed #555; padding-top:10px;">
                         <span class="debug-label">修改我方积分:</span>
                         <div class="debug-ctrl">
                             <button class="debug-btn" id="score-minus">-10</button>
@@ -280,13 +261,16 @@
                         <button class="debug-apply" id="db-freeze-ai" style="background:#607d8b;">🥶 冻结所有电脑</button>
                         <button class="debug-apply" id="db-give-shield" style="background:#f57c00;">🛡️ 获得保护状态</button>
                     </div>
-                    <div style="font-size:10px; color:#aaa; margin-top:8px;">* 实时生效，无需重启回合</div>
+                    <div style="font-size:10px; color:#aaa; margin-top:8px;">* 实时生效，移动后触发事件</div>
                 </div>
             `;
+
             const ball = document.getElementById('debug-ball');
             const menu = document.getElementById('debug-menu');
             const dbTarget = document.getElementById('db-target');
+            const evTarget = document.getElementById('ev-target');
             let isDragging = false;
+
             ball.onpointerdown = (e) => {
                 isDragging = false;
                 let shiftX = e.clientX - ball.getBoundingClientRect().left;
@@ -300,12 +284,30 @@
                 }
                 function onPointerMove(e) { moveAt(e.clientX, e.clientY); }
                 document.addEventListener('pointermove', onPointerMove);
-                ball.onpointerup = () => { document.removeEventListener('pointermove', onPointerMove); ball.onpointerup = null; };
+                ball.onpointerup = () => { document.removeEventListener('pointermove', onPointerMove); };
             };
+
             ball.onclick = () => { if (!isDragging) menu.classList.toggle('hidden'); };
+
+            // 落点加减
             document.getElementById('db-minus').onclick = () => { let v = parseInt(dbTarget.value); if (v > 1) dbTarget.value = v - 1; };
             document.getElementById('db-plus').onclick = () => { let v = parseInt(dbTarget.value); if (v < 24) dbTarget.value = v + 1; };
-            document.getElementById('db-apply').onclick = () => { window.__DEBUG_NEXT_MOVE__ = parseInt(dbTarget.value); alert(`已设置下次移动终点为: ${window.__DEBUG_NEXT_MOVE__}格`); menu.classList.add('hidden'); };
+            document.getElementById('db-apply').onclick = () => {
+                window.__DEBUG_NEXT_MOVE__ = parseInt(dbTarget.value);
+                alert(`已设置下次移动终点为: ${window.__DEBUG_NEXT_MOVE__}格`);
+                menu.classList.add('hidden');
+            };
+
+            // 事件加减
+            document.getElementById('ev-minus').onclick = () => { let v = parseInt(evTarget.value); if (v > 1) evTarget.value = v - 1; };
+            document.getElementById('ev-plus').onclick = () => { let v = parseInt(evTarget.value); if (v < 10) evTarget.value = v + 1; };
+            document.getElementById('ev-apply').onclick = () => {
+                window.__DEBUG_NEXT_EVENT__ = parseInt(evTarget.value);
+                alert(`调试生效：下次移动结束将强制触发 [${window.__DEBUG_NEXT_EVENT__}] 号事件`);
+                menu.classList.add('hidden');
+            };
+
+            // 积分与状态
             document.getElementById('score-minus').onclick = () => { window.__DEBUG_CMD__ = { type: 'ADD_SCORE', value: -10 }; };
             document.getElementById('score-plus').onclick = () => { window.__DEBUG_CMD__ = { type: 'ADD_SCORE', value: 50 }; };
             document.getElementById('db-freeze-ai').onclick = () => { window.__DEBUG_CMD__ = { type: 'FREEZE_AI' }; };
@@ -326,7 +328,7 @@
         const btnLaunch = document.getElementById('btn-launch');
         const btnBack = document.getElementById('btn-back');
 
-        // 动态创建弹窗
+        // 弹窗管理
         const confirmModal = document.createElement('div');
         confirmModal.id = 'confirm-modal';
         confirmModal.style.cssText = `display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10001; justify-content: center; align-items: center;`;
@@ -369,16 +371,10 @@
             btnContinue.className = "menu-btn";
             btnContinue.style.backgroundColor = "#4caf50";
             btnContinue.style.marginBottom = "15px";
-
-            // 🟢 [ID标识] 用于排除自动播放
             btnContinue.id = "btn-continue";
-
             if (menuButtonsDiv && btnStart) menuButtonsDiv.insertBefore(btnContinue, btnStart);
-
             btnContinue.onclick = () => {
-                // 必须加上这行，否则 start-screen 会一直挡在游戏画面上面
                 startScreen.classList.add('hidden');
-                // 🟢 [核心] 调用新逻辑
                 startGameLogic(3, true);
             };
         }
@@ -402,9 +398,7 @@
         };
 
         btnLaunch.onclick = () => {
-            // 隐藏 HTML 菜单
             setupScreen.classList.add('hidden');
-            // 🟢 [核心] 通知 Phaser 开始跑逻辑
             startGameLogic(aiCount, false);
         };
 

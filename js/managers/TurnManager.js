@@ -1,4 +1,6 @@
 // managers/TurnManager.js
+import { ITEM_DATA } from '../ItemConfig.js';
+
 export default class TurnManager {
     constructor(scene) {
         this.scene = scene;
@@ -46,16 +48,18 @@ export default class TurnManager {
         if (this.scene.players.every(p => p.position !== 0)) this.scene.ui.hideStartGrid();
 
         // 4. 状态检查 (爆牌/结束/冻结)
+        // 🟢 [核心修复]：一旦检测到需要跳过状态，处理后必须立即 return，阻断后续逻辑执行
         if (['bust', 'done', 'frozen'].includes(player.state)) {
             if (player.state === 'frozen') {
                 player.state = 'waiting'; // 解冻
-                this.scene.toast.show(`${player.name} 解冻，本回合跳过`, 1500);
+                this.scene.toast.show(`❄️ ${player.name} 被冻结，跳过本回合`, 2000);
             } else {
-                // bust 或 done 的人直接跳过
+                // bust 或 done 的人逻辑保持不变
             }
+
             // 延迟一点直接下一位
-            this.scene.time.delayedCall(1000, () => this.nextTurn());
-            return;
+            this.scene.time.delayedCall(1500, () => this.nextTurn());
+            return; // 🛑 必须阻断，否则后面会继续执行 AI 决策
         }
 
         // 5. 设置为行动中
@@ -416,21 +420,36 @@ export default class TurnManager {
         this.scene.ui.hideItemUsageMode();
         this.readyForAction(player);
     }
-
-    // --- 道具点击触发 ---
+// --- 道具点击触发 ---
     onItemClick(itemType, index, x, y) {
-        // 如果是AI或者忙碌中，忽略
+        // 1. 基本检查：如果是AI或者忙碌中，忽略
         if (this.isBusy || this.scene.players[this.scene.currentPlayerIndex].isAI) return;
 
+        // 2. 取消选择逻辑
         if (this.itemPhaseState && this.itemPhaseState.selectedItemIndex === index) {
-            // 取消选择
-            this.scene.ui.hideItemUsageMode();
-            this.itemPhaseState = null;
-            this.startItemPhase(this.scene.players[this.scene.currentPlayerIndex]); // 重置显示
+            this.scene.ui.hideItemDescription(); // 关闭描述框
+            this.itemPhaseState.selectedItemIndex = -1; // 重置选中索引
             return;
         }
 
-        this.itemPhaseState = { selectedItemIndex: index, itemType: itemType };
-        this.scene.ui.showItemUsageMode(x, y, itemType);
+        // 3. 🟢 [核心修复] 保存状态，而不是覆盖状态
+        // 我们必须保留之前的 timeLeft 和 timerEvent，否则倒计时会消失或重置
+        const existingTimer = this.itemPhaseState ? this.itemPhaseState.timerEvent : null;
+        const existingTimeLeft = this.itemPhaseState ? this.itemPhaseState.timeLeft : 20;
+
+        this.itemPhaseState = {
+            timeLeft: existingTimeLeft,
+            timerEvent: existingTimer, // 👈 关键：继承定时器
+            selectedItemIndex: index,
+            itemType: itemType
+        };
+
+        // 4. 获取道具数据 (名字/描述)
+        const itemData = ITEM_DATA[itemType] || { name: "未知", desc: "暂无描述" };
+
+        // 5. 🟢 [核心修复] 调用正确的 UI 函数
+        // 之前你调用的是 showItemUsageMode(x,y)，那是错的！
+        // 应该调用 showItemDescription 来显示“使用”按钮和道具介绍
+        this.scene.ui.showItemDescription(itemData, x, y);
     }
 }
